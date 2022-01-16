@@ -12,14 +12,14 @@ import torchvision.transforms as transforms
 
 
 class AnimeDataset(Dataset):
-    def __init__(self, paths: list, transform: transforms.Compose):
+    def __init__(self, paths: list[str], transform: transforms.Compose):
         self.paths = paths
         self.transform = transform
 
     def __len__(self):
         return len(self.paths)
 
-    def __getitem__(self, index: int):
+    def __getitem__(self, index: int) -> torch.FloatTensor:
         path = self.paths[index]
         image = Image.open(path)
         if image is None:
@@ -29,7 +29,7 @@ class AnimeDataset(Dataset):
         return image
 
 
-def load_dataset(path_dir: list, image_size: int):
+def load_dataset(path_dir: str, image_size: int) -> AnimeDataset:
     paths = [
         os.path.join(path_dir, p)
         for p in os.listdir(path_dir)
