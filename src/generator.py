@@ -201,7 +201,7 @@ class SynthesisNetwork(nn.Module):
             B2 = block.compute_noise(batch_size).to(A.device)
             x = block(x, A, B1, B2)
         x = self.to_rgb(x)
-        return x
+        return torch.sigmoid(x)
 
 
 class StyleGAN(nn.Module):
