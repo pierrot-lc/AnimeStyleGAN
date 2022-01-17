@@ -21,7 +21,7 @@ summary(config['netD'], input_size=(config['batch_size'], 3, config['dim_image']
 print('\n\nTraining details:')
 for param in ['batch_size', 'dim_image', 'epochs', 'lr_g', 'lr_d']:
     if 'lr' in param:
-        print(f'\t[{param}]\t\t-\t{config[param]}')
+        print(f'\t[{param}]\t\t-\t{config[param]:.1e}')
     else:
         print(f'\t[{param}]\t-\t{config[param]}')
 
@@ -31,8 +31,8 @@ if input('[y/n]> ') != 'y':
 
 with wb.init(
     entity='pierrotlc',
-    group=f'AnimeStyleGAN - {config["dim_image"]}x{config["dim_image"]}',
-    project='test',
+    group=f'Base - {config["dim_image"]}x{config["dim_image"]}',
+    project='AnimeStyleGAN',
     config=config,
     save_code=True,
 ):

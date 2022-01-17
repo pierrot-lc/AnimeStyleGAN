@@ -150,9 +150,9 @@ def train(config: dict):
 
     # Save models in the WandB run
     netG_artifact = wb.Artifact('netG', type='model')
-    netG.add_file('models/netG.pth')
+    netG_artifact.add_file('models/netG.pth')
     netD_artifact = wb.Artifact('netD', type='model')
-    netD.add_file('models/netD.pth')
+    netD_artifact.add_file('models/netD.pth')
 
 
 def prepare_training(data_path: str, config: dict) -> dict:
@@ -220,8 +220,8 @@ def create_config() -> dict:
         'lr_g': 5e-5,
 
         # Discriminator params
-        'n_first_channels': 4,
-        'lr_d': 5e-5,
+        'n_first_channels': 8,
+        'lr_d': 1e-4,
     }
 
     return config
