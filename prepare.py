@@ -63,6 +63,16 @@ def split_images(
             shutil.move(file, os.path.join(dir_tgt, filename))
 
 
-if __name__ == '__main__':
+def init_project():
     extract_images('archive.zip', 'data')
     split_images('data')
+
+    print('Creating models directory...')
+    if not os.path.exists('models'):
+        os.mkdir('models')
+
+    print('Initialisation done!')
+
+
+if __name__ == '__main__':
+    init_project()
