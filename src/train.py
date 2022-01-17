@@ -24,6 +24,7 @@ def train(config: dict):
     train_loader, test_loader = config['train_loader'], config['test_loader']
     batch_size, device = config['batch_size'], config['device']
 
+    torch.manual_seed(config['seed'])
     netG.to(device), netD.to(device)
     fixed_latent = netG.generate_z(64).to(device)
 
@@ -74,30 +75,6 @@ def train(config: dict):
         })
 
 
-
-def create_config() -> dict:
-    """Return the basic parameters for training.
-    """
-    config = {
-        # Global params
-        'dim_image': 64,
-        'batch_size': 128,
-        'epochs': 10,
-        'lr': 1e-4,
-        'device': 'cuda' if torch.cuda.is_available() else 'cpu',
-
-        # StyleGAN params
-        'n_channels': 128,
-        'dim_z': 32,
-        'n_layers_z': 3,
-
-        # Discriminator params
-        'n_first_channels': 4,
-    }
-
-    return config
-
-
 def prepare_training(data_path: str, config: dict) -> dict:
     """Instanciate the models, the dataloaders and
     the optimizers.
@@ -118,11 +95,11 @@ def prepare_training(data_path: str, config: dict) -> dict:
     # Optimizers
     config['optimG'] = optim.RMSprop(
         config['netG'].parameters(),
-        lr=config['lr'],
+        lr=config['lr_g'],
     )
     config['optimD'] = optim.RMSprop(
         config['netD'].parameters(),
-        lr=config['lr'],
+        lr=config['lr_d'],
     )
 
     # Datasets and dataloaders
@@ -141,5 +118,30 @@ def prepare_training(data_path: str, config: dict) -> dict:
         shuffle=True,
         num_workers=2,
     )
+
+    return config
+
+
+def create_config() -> dict:
+    """Return the basic parameters for training.
+    """
+    config = {
+        # Global params
+        'dim_image': 64,
+        'batch_size': 128,
+        'epochs': 10,
+        'device': 'cuda' if torch.cuda.is_available() else 'cpu',
+        'seed': 0,
+
+        # StyleGAN params
+        'n_channels': 128,
+        'dim_z': 32,
+        'n_layers_z': 3,
+        'lr_g': 1e-4,
+
+        # Discriminator params
+        'n_first_channels': 4,
+        'lr_d': 1e-3,
+    }
 
     return config

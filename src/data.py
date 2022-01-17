@@ -12,7 +12,7 @@ import torchvision.transforms as transforms
 
 
 class AnimeDataset(Dataset):
-    def __init__(self, paths: list[str], transform: transforms.Compose):
+    def __init__(self, paths: list, transform: transforms.Compose):
         self.paths = paths
         self.transform = transform
 

@@ -10,22 +10,6 @@ from src.train import create_config, prepare_training, train
 
 
 config = create_config()
-config = {
-    # Global params
-    'dim_image': 32,
-    'batch_size': 128,
-    'epochs': 10,
-    'lr': 1e-4,
-    'device': 'cuda' if torch.cuda.is_available() else 'cpu',
-
-    # StyleGAN params
-    'n_channels': 128,
-    'dim_z': 32,
-    'n_layers_z': 3,
-
-    # Discriminator params
-    'n_first_channels': 4,
-}
 config = prepare_training('./data/', config)
 
 print('Generator model:')
