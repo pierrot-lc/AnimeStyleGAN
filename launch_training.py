@@ -29,5 +29,11 @@ print(f'\n\nContinue with training for {config["epochs"]} epochs?')
 if input('[y/n]> ') != 'y':
     sys.exit(0)
 
-with wb.init(project='test', config=config, entity='pierrotlc', save_code=True):
+with wb.init(
+    entity='pierrotlc',
+    group=f'AnimeStyleGAN - {config["dim_image"]}x{config["dim_image"]}',
+    project='test',
+    config=config,
+    save_code=True,
+):
     train(config)

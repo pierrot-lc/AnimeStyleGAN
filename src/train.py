@@ -2,6 +2,7 @@
 """
 import os
 
+import numpy as np
 import wandb as wb
 from tqdm import tqdm
 
@@ -13,6 +14,67 @@ from torch.utils.data import DataLoader
 from src.generator import StyleGAN
 from src.discriminator import Discriminator
 from src.data import load_dataset
+
+
+def eval_loader(dataloader: DataLoader, config: dict) -> dict:
+    """Evaluate the models on the given dataloader.
+    Return the evaluate metrics.
+    """
+    netG, netD = config['netG'], config['netD']
+    batch_size, device = config['batch_size'], config['device']
+    metrics = {
+        # Discriminator metrics
+        'D_real_loss': [],
+        'D_real_acc': [],
+        'D_fake_loss': [],
+        'D_fake_acc': [],
+        'D_total_loss': [],
+
+        # Generator metrics
+        'G_loss': [],
+        'G_acc': [],
+    }
+
+
+    netG.to(device), netD.to(device)
+    netG.eval(), netD.eval()
+
+    with torch.no_grad():
+        # Eval discriminator
+        for real in dataloader:
+            real = real.to(device)
+
+            # On real images first
+            predicted = netD(real)
+            errD_real = -predicted.mean()
+            metrics['D_real_loss'].append(errD_real.item())
+            metrics['D_real_acc'].append(torch.sigmoid(predicted).mean().item())
+
+            # On fake images then
+            latents = netG.generate_z(batch_size).to(device)
+            fake = netG(latents)
+            predicted = netD(fake)
+            errD_fake = predicted.mean()
+            metrics['D_fake_loss'].append(errD_fake.item())
+            metrics['D_fake_acc'].append(torch.sigmoid(-predicted).mean().item())
+
+            # Final discriminator loss
+            errD = errD_real + errD_fake
+            metrics['D_total_loss'].append(errD.item())
+
+        # Eval generator
+        for _ in range(len(dataloader)):
+            latents = netG.generate_z(batch_size).to(device)
+            fake = netG(latents)
+            predicted = netD(fake)
+            errG = -predicted.mean()  # We want G to fool D
+            metrics['G_loss'].append(errG.item())
+            metrics['G_acc'].append(torch.sigmoid(predicted).mean().item())
+
+    for metric_name, values in metrics.items():
+        metrics[metric_name] = np.mean(values)
+
+    return metrics
 
 
 def train(config: dict):
@@ -70,9 +132,27 @@ def train(config: dict):
         with torch.no_grad():
             fake = netG(fixed_latent).cpu()
 
-        wb.log({
-            'Generated images': wb.Image(fake),
-        })
+        train_metrics = eval_loader(train_loader, config)
+        test_metrics = eval_loader(test_loader, config)
+
+        logs = dict()
+        for group, metrics in [('Train', train_metrics), ('Test', test_metrics)]:
+            for metric_name, value in metrics.items():
+                logs[f'{group} - {metric_name}'] = value
+
+        logs['Generated images'] = wb.Image(fake)
+
+        wb.log(logs)
+
+        # Save models on disk
+        torch.save(netG.state_dict(), 'models/netG.pth')
+        torch.save(netD.state_dict(), 'models/netD.pth')
+
+    # Save models in the WandB run
+    netG_artifact = wb.Artifact('netG', type='model')
+    netG.add_file('models/netG.pth')
+    netD_artifact = wb.Artifact('netD', type='model')
+    netD.add_file('models/netD.pth')
 
 
 def prepare_training(data_path: str, config: dict) -> dict:
@@ -129,7 +209,7 @@ def create_config() -> dict:
         # Global params
         'dim_image': 32,
         'batch_size': 128,
-        'epochs': 100,
+        'epochs': 5,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'seed': 0,
 
@@ -137,11 +217,11 @@ def create_config() -> dict:
         'n_channels': 128,
         'dim_z': 32,
         'n_layers_z': 3,
-        'lr_g': 1e-5,
+        'lr_g': 5e-5,
 
         # Discriminator params
-        'n_first_channels': 8,
-        'lr_d': 1e-4,
+        'n_first_channels': 4,
+        'lr_d': 5e-5,
     }
 
     return config
