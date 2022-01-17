@@ -3,3 +3,4 @@ data/
 wandb/
 *.swp
 src/__pycache__/
+models/
