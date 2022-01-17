@@ -1,3 +1,5 @@
 archive.zip
 data/
+wandb/
 *.swp
+src/__pycache__/
