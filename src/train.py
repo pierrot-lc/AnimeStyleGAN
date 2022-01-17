@@ -149,10 +149,10 @@ def train(config: dict):
         torch.save(netD.state_dict(), 'models/netD.pth')
 
     # Save models in the WandB run
-    netG_artifact = wb.Artifact('netG', type='model')
-    netG_artifact.add_file('models/netG.pth')
-    netD_artifact = wb.Artifact('netD', type='model')
-    netD_artifact.add_file('models/netD.pth')
+    for net_name in ['netG', 'netD']:
+        net_artifact = wb.Artifact(net_name, type='model')
+        net_artifact.add_file(os.path.join('models', net_name + '.pth'))
+        wb.log_artifact(net_artifact)
 
 
 def prepare_training(data_path: str, config: dict) -> dict:
@@ -221,7 +221,7 @@ def create_config() -> dict:
 
         # Discriminator params
         'n_first_channels': 8,
-        'lr_d': 1e-4,
+        'lr_d': 5e-4,
     }
 
     return config

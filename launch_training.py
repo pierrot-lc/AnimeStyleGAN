@@ -25,7 +25,7 @@ for param in ['batch_size', 'dim_image', 'epochs', 'lr_g', 'lr_d']:
     else:
         print(f'\t[{param}]\t-\t{config[param]}')
 
-print(f'\n\nContinue with training for {config["epochs"]} epochs?')
+print(f'\nContinue with training for {config["epochs"]} epochs?')
 if input('[y/n]> ') != 'y':
     sys.exit(0)
 
