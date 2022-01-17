@@ -44,6 +44,8 @@ class DiscriminatorBlock(nn.Module):
 
 
 class Discriminator(nn.Module):
+    """Basic discriminator implementation.
+    """
     def __init__(self, dim: int, n_first_channels: int):
         super().__init__()
         n_blocks = int(np.log2(dim))
@@ -55,7 +57,7 @@ class Discriminator(nn.Module):
         ])
 
         self.classify = nn.Sequential(
-            nn.Conv2d(n_first_channels << n_blocks, 1, 3, 1, 1),
+            nn.Conv2d(n_first_channels << n_blocks, 1, 3, 1, 1, bias=False),
             nn.Flatten(),
         )
 

@@ -6,7 +6,6 @@ import numpy as np
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 import einops
 from torchinfo import summary
@@ -23,7 +22,8 @@ class MappingNetwork(nn.Module):
         self.fully_connected = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(dim_z, dim_z),
-                nn.ReLU(),
+                nn.LayerNorm(dim_z),
+                nn.LeakyReLU(),
             )
             for _ in range(n_layers)
         ])
@@ -48,7 +48,7 @@ class MappingNetwork(nn.Module):
         w = self.out_layer(z)
         return w
 
-    def generate_z(self, batch_size: int):
+    def generate_z(self, batch_size: int) -> torch.FloatTensor:
         return torch.randn(size=(batch_size, self.dim_z))
 
 
@@ -205,6 +205,10 @@ class SynthesisNetwork(nn.Module):
 
 
 class StyleGAN(nn.Module):
+    """The main generator module.
+    Use the synthesis network coupled with the mapping module
+    to create new images.
+    """
     def __init__(
             self,
             dim_final: int,
@@ -218,9 +222,24 @@ class StyleGAN(nn.Module):
         self.synthesis = SynthesisNetwork(dim_final, n_channels)
 
     def forward(self, z: torch.FloatTensor) -> torch.FloatTensor:
+        """Take the latent vectors and produce images.
+
+        Args
+        ----
+            z: Batch of latent vectors (randomly drawn).
+                Shape of [batch_size, dim_z].
+
+        Return
+        ------
+            x: Batch of generated images.
+                Shape of [batch_size, 3, dim_final, dim_final].
+        """
         z = self.mapping(z)
         x = self.synthesis(z)
         return x
+
+    def generate_z(self, batch_size: int) -> torch.FloatTensor:
+        return self.mapping.generate_z(batch_size)
 
 
 if __name__ == '__main__':

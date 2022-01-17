@@ -53,7 +53,7 @@ def plot_image(image: torch.FloatTensor):
 
 
 if __name__ == '__main__':
-    path_dir = '../data'
+    path_dir = '../data/train'
     image_size = 64
 
     dataset = load_dataset(path_dir, image_size)
