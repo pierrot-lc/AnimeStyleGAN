@@ -18,6 +18,13 @@ summary(config['netG'], input_size=(config['batch_size'], config['dim_z']))
 print('\n\nDiscriminator model:')
 summary(config['netD'], input_size=(config['batch_size'], 3, config['dim_image'], config['dim_image']))
 
+print('\n\nTraining details:')
+for param in ['batch_size', 'dim_image', 'epochs', 'lr_g', 'lr_d']:
+    if 'lr' in param:
+        print(f'\t[{param}]\t\t-\t{config[param]}')
+    else:
+        print(f'\t[{param}]\t-\t{config[param]}')
+
 print(f'\n\nContinue with training for {config["epochs"]} epochs?')
 if input('[y/n]> ') != 'y':
     sys.exit(0)

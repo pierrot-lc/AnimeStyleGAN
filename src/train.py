@@ -127,9 +127,9 @@ def create_config() -> dict:
     """
     config = {
         # Global params
-        'dim_image': 64,
+        'dim_image': 32,
         'batch_size': 128,
-        'epochs': 10,
+        'epochs': 100,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'seed': 0,
 
@@ -137,11 +137,11 @@ def create_config() -> dict:
         'n_channels': 128,
         'dim_z': 32,
         'n_layers_z': 3,
-        'lr_g': 1e-4,
+        'lr_g': 1e-5,
 
         # Discriminator params
-        'n_first_channels': 4,
-        'lr_d': 1e-3,
+        'n_first_channels': 8,
+        'lr_d': 1e-4,
     }
 
     return config
