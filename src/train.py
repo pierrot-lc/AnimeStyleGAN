@@ -35,9 +35,9 @@ def eval_loader(dataloader: DataLoader, config: dict) -> dict:
         'G_acc': [],
     }
 
-
     netG.to(device), netD.to(device)
     netG.eval(), netD.eval()
+    loss = nn.BCEWithLogitsLoss()
 
     with torch.no_grad():
         # Eval discriminator
@@ -46,7 +46,7 @@ def eval_loader(dataloader: DataLoader, config: dict) -> dict:
 
             # On real images first
             predicted = netD(real)
-            errD_real = -predicted.mean()
+            errD_real = loss(predicted, torch.ones_like(predicted))
             metrics['D_real_loss'].append(errD_real.item())
             metrics['D_real_acc'].append(torch.sigmoid(predicted).mean().item())
 
@@ -54,12 +54,12 @@ def eval_loader(dataloader: DataLoader, config: dict) -> dict:
             latents = netG.generate_z(batch_size).to(device)
             fake = netG(latents)
             predicted = netD(fake)
-            errD_fake = predicted.mean()
+            errD_fake = loss(predicted, torch.zeros_like(predicted))
             metrics['D_fake_loss'].append(errD_fake.item())
             metrics['D_fake_acc'].append(torch.sigmoid(-predicted).mean().item())
 
             # Final discriminator loss
-            errD = errD_real + errD_fake
+            errD = config['weight_err_d_real'] * errD_real + errD_fake
             metrics['D_total_loss'].append(errD.item())
 
         # Eval generator
@@ -67,7 +67,7 @@ def eval_loader(dataloader: DataLoader, config: dict) -> dict:
             latents = netG.generate_z(batch_size).to(device)
             fake = netG(latents)
             predicted = netD(fake)
-            errG = -predicted.mean()  # We want G to fool D
+            errG = loss(predicted, torch.ones_like(predicted))  # We want G to fool D
             metrics['G_loss'].append(errG.item())
             metrics['G_acc'].append(torch.sigmoid(predicted).mean().item())
 
@@ -89,6 +89,7 @@ def train(config: dict):
     torch.manual_seed(config['seed'])
     netG.to(device), netD.to(device)
     fixed_latent = netG.generate_z(64).to(device)
+    loss = nn.BCEWithLogitsLoss()
 
     for _ in tqdm(range(config['epochs'])):
         netG.train()
@@ -101,17 +102,16 @@ def train(config: dict):
 
             # On real images first
             predicted = netD(real)
-            errD_real = -predicted.mean()
+            errD_real = loss(predicted, torch.ones_like(predicted))
 
             # On fake images then
-            with torch.no_grad():
-                latents = netG.generate_z(batch_size).to(device)
-                fake = netG(latents)
+            latents = netG.generate_z(batch_size).to(device)
+            fake = netG(latents).detach()
             predicted = netD(fake)
-            errD_fake = predicted.mean()
+            errD_fake = loss(predicted, torch.zeros_like(predicted))
 
             # Final discriminator loss
-            errD = errD_real + errD_fake
+            errD = config['weight_err_d_real'] * errD_real + errD_fake
             errD.backward()
             optimD.step()
 
@@ -123,9 +123,9 @@ def train(config: dict):
             fake = netG(latents)
             predicted = netD(fake)
 
-            errG = -predicted.mean()  # We want G to fool D
+            errG = loss(predicted, torch.ones_like(predicted))  # We want G to fool D
             errG.backward()
-            nn.utils.clip_grad_norm_(netG.parameters(), 0.1)
+            # nn.utils.clip_grad_norm_(netG.parameters(), 0.1)
             optimG.step()
 
         # Generate fake images and logs everything to WandB
@@ -173,11 +173,11 @@ def prepare_training(data_path: str, config: dict) -> dict:
     )
 
     # Optimizers
-    config['optimG'] = optim.RMSprop(
+    config['optimG'] = optim.Adam(
         config['netG'].parameters(),
         lr=config['lr_g'],
     )
-    config['optimD'] = optim.RMSprop(
+    config['optimD'] = optim.Adam(
         config['netD'].parameters(),
         lr=config['lr_d'],
     )
@@ -208,8 +208,8 @@ def create_config() -> dict:
     config = {
         # Global params
         'dim_image': 32,
-        'batch_size': 128,
-        'epochs': 5,
+        'batch_size': 64,
+        'epochs': 15,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'seed': 0,
 
@@ -217,11 +217,12 @@ def create_config() -> dict:
         'n_channels': 128,
         'dim_z': 32,
         'n_layers_z': 3,
-        'lr_g': 5e-5,
+        'lr_g': 1e-5,
 
         # Discriminator params
         'n_first_channels': 8,
-        'lr_d': 5e-4,
+        'lr_d': 1e-5,
+        'weight_err_d_real': 0.03,
     }
 
     return config
