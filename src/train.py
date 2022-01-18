@@ -80,11 +80,16 @@ def eval_loader(dataloader: DataLoader, config: dict) -> dict:
 def train(config: dict):
     """Training loop.
     WandB should be initialise as the results will be logged.
+
+    Use some methods for stability:
+        - Label smoothing
+        - Noise in front of the discriminator
     """
     netG, netD = config['netG'], config['netD']
     optimG, optimD = config['optimG'], config['optimD']
     train_loader, test_loader = config['train_loader'], config['test_loader']
     batch_size, device = config['batch_size'], config['device']
+    dim_im = config['dim_image']
 
     torch.manual_seed(config['seed'])
     netG.to(device), netD.to(device)
@@ -101,12 +106,17 @@ def train(config: dict):
             real = real.to(device)
 
             # On real images first
+            real = real + torch.randn((real.shape[0], 3, dim_im, dim_im)).to(device)
             predicted = netD(real)
-            errD_real = loss(predicted, torch.ones_like(predicted))
+            errD_real = loss(
+                predicted,
+                0.9 * torch.ones_like(predicted)  # Label smoothing
+            )
 
             # On fake images then
             latents = netG.generate_z(batch_size).to(device)
             fake = netG(latents).detach()
+            fake = fake + torch.randn((batch_size, 3, dim_im, dim_im)).to(device)
             predicted = netD(fake)
             errD_fake = loss(predicted, torch.zeros_like(predicted))
 
@@ -121,6 +131,7 @@ def train(config: dict):
 
             latents = netG.generate_z(batch_size).to(device)
             fake = netG(latents)
+            fake = fake + torch.randn((batch_size, 3, dim_im, dim_im)).to(device)
             predicted = netD(fake)
 
             errG = loss(predicted, torch.ones_like(predicted))  # We want G to fool D
@@ -169,7 +180,8 @@ def prepare_training(data_path: str, config: dict) -> dict:
     )
     config['netD'] = Discriminator(
         config['dim_image'],
-        config['n_first_channels']
+        config['n_first_channels'],
+        config['n_layers_d_block'],
     )
 
     # Optimizers
@@ -208,7 +220,7 @@ def create_config() -> dict:
     config = {
         # Global params
         'dim_image': 32,
-        'batch_size': 64,
+        'batch_size': 128,
         'epochs': 15,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'seed': 0,
@@ -221,8 +233,9 @@ def create_config() -> dict:
 
         # Discriminator params
         'n_first_channels': 8,
-        'lr_d': 1e-5,
-        'weight_err_d_real': 0.03,
+        'n_layers_d_block': 4,
+        'lr_d': 1e-4,
+        'weight_err_d_real': 0.01,
     }
 
     return config

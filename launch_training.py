@@ -19,7 +19,7 @@ print('\n\nDiscriminator model:')
 summary(config['netD'], input_size=(config['batch_size'], 3, config['dim_image'], config['dim_image']))
 
 print('\n\nTraining details:')
-for param in ['batch_size', 'dim_image', 'epochs', 'lr_g', 'lr_d']:
+for param in ['batch_size', 'dim_image', 'epochs', 'lr_g', 'lr_d', 'device']:
     if 'lr' in param:
         print(f'\t[{param}]\t\t-\t{config[param]:.1e}')
     else:
@@ -31,9 +31,9 @@ if input('[y/n]> ') != 'y':
 
 with wb.init(
     entity='pierrotlc',
-    group=f'BCELoss - {config["dim_image"]}x{config["dim_image"]}',
-    project='AnimeStyleGAN',
-    #project='test',
+    group=f'Stable - {config["dim_image"]}x{config["dim_image"]}',
+    # project='AnimeStyleGAN',
+    project='test',
     config=config,
     save_code=True,
 ):

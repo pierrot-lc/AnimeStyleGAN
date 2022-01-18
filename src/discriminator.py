@@ -11,18 +11,19 @@ from torchinfo import summary
 class DiscriminatorBlock(nn.Module):
     """Two layers of convolution and one layer of downsampling.
     """
-    def __init__(self, n_channels: int):
+    def __init__(self, n_channels: int, n_filters: int):
         super().__init__()
 
-        self.convs = nn.Sequential(
-            nn.Conv2d(n_channels, n_channels, 3, 1, 1, bias=False),
-            nn.BatchNorm2d(n_channels),
-            nn.LeakyReLU(),
-
-            nn.Conv2d(n_channels, n_channels, 3, 1, 1, bias=False),
-            nn.BatchNorm2d(n_channels),
-            nn.LeakyReLU(),
-        )
+        self.convs = nn.ModuleList([
+            nn.Sequential(
+                nn.utils.spectral_norm(
+                    nn.Conv2d(n_channels, n_channels, 3, 1, 1, bias=False)
+                ),  # Spectral norm for stability training
+                nn.BatchNorm2d(n_channels),
+                nn.LeakyReLU(),
+            )
+            for _ in range(n_filters)
+        ])
         self.downsample = nn.Conv2d(n_channels, 2 * n_channels, 4, 2, 1)
 
     def forward(self, x: torch.FloatTensor) -> torch.FloatTensor:
@@ -38,7 +39,8 @@ class DiscriminatorBlock(nn.Module):
             x: Batch of images features.
                 Shape of [batch_size, 2 * n_channels, width // 2, height // 2].
         """
-        x = self.convs(x)
+        for conv in self.convs:
+            x = x + conv(x)
         x = self.downsample(x)
         return x
 
@@ -46,13 +48,13 @@ class DiscriminatorBlock(nn.Module):
 class Discriminator(nn.Module):
     """Basic discriminator implementation.
     """
-    def __init__(self, dim: int, n_first_channels: int):
+    def __init__(self, dim: int, n_first_channels: int, n_layers_block: int):
         super().__init__()
         n_blocks = int(np.log2(dim))
 
         self.first_conv = nn.Conv2d(3, n_first_channels, 3, 1, 1)
         self.blocks = nn.ModuleList([
-            DiscriminatorBlock(n_first_channels << block_id)
+            DiscriminatorBlock(n_first_channels << block_id, n_layers_block)
             for block_id in range(n_blocks)
         ])
 
@@ -88,6 +90,7 @@ if __name__ == '__main__':
     config = {
         'dim': 64,
         'n_first_channels': 4,
+        'n_layers_block': 3,
     }
 
     model = Discriminator(**config)
