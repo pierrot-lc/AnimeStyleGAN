@@ -108,9 +108,11 @@ def train(config: dict):
             # On real images first
             real = real + torch.randn((real.shape[0], 3, dim_im, dim_im)).to(device)
             predicted = netD(real)
+
+            label = 1 - torch.rand(1) / 3
             errD_real = loss(
                 predicted,
-                0.9 * torch.ones_like(predicted)  # Label smoothing
+                label * torch.ones_like(predicted)  # Label smoothing
             )
 
             # On fake images then
@@ -118,9 +120,11 @@ def train(config: dict):
             fake = netG(latents).detach()
             fake = fake + torch.randn((batch_size, 3, dim_im, dim_im)).to(device)
             predicted = netD(fake)
+
+            label = torch.rand(1) / 3
             errD_fake = loss(
                 predicted,
-                0.3 * torch.zeros_like(predicted)
+                label * torch.zeros_like(predicted)
             )
 
             # Final discriminator loss
@@ -137,7 +141,11 @@ def train(config: dict):
             fake = fake + torch.randn((batch_size, 3, dim_im, dim_im)).to(device)
             predicted = netD(fake)
 
-            errG = loss(predicted, torch.ones_like(predicted))  # We want G to fool D
+            label = 1 - torch.rand(1) / 3
+            errG = loss(
+                predicted,
+                label * torch.ones_like(predicted)
+            )  # We want G to fool D
             errG.backward()
             optimG.step()
 
@@ -223,7 +231,7 @@ def create_config() -> dict:
         # Global params
         'dim_image': 32,
         'batch_size': 128,
-        'epochs': 15,
+        'epochs': 50,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'seed': 0,
 
