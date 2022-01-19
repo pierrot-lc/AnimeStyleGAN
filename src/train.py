@@ -109,7 +109,7 @@ def train(config: dict):
             real = real + torch.randn((real.shape[0], 3, dim_im, dim_im)).to(device)
             predicted = netD(real)
 
-            label = 1 - torch.rand(1) / 3
+            label = 1 - torch.rand(1).to(device) / 3
             errD_real = loss(
                 predicted,
                 label * torch.ones_like(predicted)  # Label smoothing
@@ -121,7 +121,7 @@ def train(config: dict):
             fake = fake + torch.randn((batch_size, 3, dim_im, dim_im)).to(device)
             predicted = netD(fake)
 
-            label = torch.rand(1) / 3
+            label = torch.rand(1).to(device) / 3
             errD_fake = loss(
                 predicted,
                 label * torch.zeros_like(predicted)
@@ -141,7 +141,7 @@ def train(config: dict):
             fake = fake + torch.randn((batch_size, 3, dim_im, dim_im)).to(device)
             predicted = netD(fake)
 
-            label = 1 - torch.rand(1) / 3
+            label = 1 - torch.rand(1).to(device) / 3
             errG = loss(
                 predicted,
                 label * torch.ones_like(predicted)

@@ -42,7 +42,7 @@ if input('[y/n]> ') != 'y':
 
 with wb.init(
     entity='pierrotlc',
-    group=f'Tanh - {config["dim_image"]}x{config["dim_image"]}',
+    group=f'Non Linear GAN - {config["dim_image"]}x{config["dim_image"]}',
     project='AnimeStyleGAN',
     # project='test',
     config=config,
