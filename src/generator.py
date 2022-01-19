@@ -106,9 +106,15 @@ class SynthesisBlock(nn.Module):
 
         if not first_block:  # Upsample and reducing channels.
             self.upsample = nn.ConvTranspose2d(2 * n_channels, n_channels, 4, 2, 1)
-            self.conv1 = nn.Conv2d(n_channels, n_channels, 3, 1, 1)
+            self.conv1 = nn.Sequential(
+                nn.Conv2d(n_channels, n_channels, 3, 1, 1),
+                nn.LeakyReLU(),
+            )
 
-        self.conv2 = nn.Conv2d(n_channels, n_channels, 3, 1, 1)
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(n_channels, n_channels, 3, 1, 1),
+            nn.LeakyReLU(),
+        )
         self.ada_in = AdaIN()
 
     def forward(
