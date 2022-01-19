@@ -95,14 +95,19 @@ class AdaIN(nn.Module):
 
 
 class SynthesisBlock(nn.Module):
+    """Upsample and then apply style vectors and convolutions.
+    Reduce the number of filters.
+    """
     def __init__(self, dim: int, n_channels: int, first_block: bool = False):
         super().__init__()
         self.dim = dim
         self.n_channels = n_channels
         self.first_block = first_block
 
-        self.upsample = nn.Upsample(scale_factor=2)
-        self.conv1 = nn.Conv2d(n_channels, n_channels, 3, 1, 1)
+        if not first_block:  # Upsample and reducing channels.
+            self.upsample = nn.ConvTranspose2d(2 * n_channels, n_channels, 4, 2, 1)
+            self.conv1 = nn.Conv2d(n_channels, n_channels, 3, 1, 1)
+
         self.conv2 = nn.Conv2d(n_channels, n_channels, 3, 1, 1)
         self.ada_in = AdaIN()
 
@@ -117,29 +122,36 @@ class SynthesisBlock(nn.Module):
         convolutions, AdaIN and some random noise.
 
         If this module is the first block of the network,
-        it will not upsample the input.
+        it will not upsample the input nor reduce the number
+        of channels.
 
         Args
         ----
             x:  Batch of images. Should be a constant for
             the first block.
-                Shape of [batch_size, n_channels, dim, dim].
+                Shape of [batch_size, n_channels, dim // 2, dim // 2],
+                except if first block: [batch_size, n_channels, dim, dim].
             A:  Batch of style vectors.
                 Shape of [batch_size, dim_z].
             B1: Batch of random noise.
-                Shape of [batch_size, n_channels, dim, dim].
+                Shape of [batch_size, n_channels // 2, dim, dim],
+                except if first block: [batch_size, n_channels, dim, dim].
             B2: Batch of random noise.
-                Shape of [batch_size, n_channels, dim, dim].
+                Shape of [batch_size, n_channels // 2, dim, dim],
+                except if first block: [batch_size, n_channels, dim, dim].
 
         Return
         ------
             x: Batch of enhanced images.
-                Shape of [batch_size, n_channels, dim, dim].
+                Shape of [batch_size, n_channels // 2, dim, dim],
+                except if first block: [batch_size, n_channels, dim, dim].
         """
         if not self.first_block:
+            # x is of shape [batch_size, n_channels, dim // 2, dim // 2].
             x = self.upsample(x)
             x = self.conv1(x)
 
+        # Here x is of shape [batch_size, n_channels (// 2), dim, dim].
         x = x + B1
         x = self.ada_in(x, A)
 
@@ -172,11 +184,15 @@ class SynthesisNetwork(nn.Module):
         )
 
         self.blocks = nn.ModuleList([
-            SynthesisBlock(INIT_DIM << block_id, n_channels, first_block = block_id == 0)
+            SynthesisBlock(INIT_DIM << block_id, n_channels >> block_id, first_block = block_id == 0)
             for block_id in range(n_blocks)
         ])
 
-        self.to_rgb = nn.Conv2d(n_channels, out_channels=3, kernel_size=1)
+        self.to_rgb = nn.Conv2d(
+            in_channels = n_channels >> (n_blocks - 1),
+            out_channels = 3,
+            kernel_size = 1,
+        )
 
     def forward(self, A: torch.FloatTensor) -> torch.FloatTensor:
         """Generate a batch of images with the given styles.
@@ -201,7 +217,7 @@ class SynthesisNetwork(nn.Module):
             B2 = block.compute_noise(batch_size).to(A.device)
             x = block(x, A, B1, B2)
         x = self.to_rgb(x)
-        return torch.sigmoid(x)
+        return torch.tanh(x)
 
 
 class StyleGAN(nn.Module):
@@ -251,4 +267,4 @@ if __name__ == '__main__':
     }
 
     model = StyleGAN(**config)
-    summary(model, input_size=([128, 10]))
+    summary(model, input_size=([128, config['dim_z']]))

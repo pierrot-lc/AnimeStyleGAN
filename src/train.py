@@ -118,7 +118,10 @@ def train(config: dict):
             fake = netG(latents).detach()
             fake = fake + torch.randn((batch_size, 3, dim_im, dim_im)).to(device)
             predicted = netD(fake)
-            errD_fake = loss(predicted, torch.zeros_like(predicted))
+            errD_fake = loss(
+                predicted,
+                0.3 * torch.zeros_like(predicted)
+            )
 
             # Final discriminator loss
             errD = config['weight_err_d_real'] * errD_real + errD_fake
@@ -136,7 +139,6 @@ def train(config: dict):
 
             errG = loss(predicted, torch.ones_like(predicted))  # We want G to fool D
             errG.backward()
-            # nn.utils.clip_grad_norm_(netG.parameters(), 0.1)
             optimG.step()
 
         # Generate fake images and logs everything to WandB
@@ -189,7 +191,7 @@ def prepare_training(data_path: str, config: dict) -> dict:
         config['netG'].parameters(),
         lr=config['lr_g'],
     )
-    config['optimD'] = optim.Adam(
+    config['optimD'] = optim.SGD(
         config['netD'].parameters(),
         lr=config['lr_d'],
     )
@@ -235,7 +237,7 @@ def create_config() -> dict:
         'n_first_channels': 8,
         'n_layers_d_block': 4,
         'lr_d': 1e-4,
-        'weight_err_d_real': 0.01,
+        'weight_err_d_real': 1,
     }
 
     return config

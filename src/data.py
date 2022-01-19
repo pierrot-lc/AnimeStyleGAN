@@ -38,7 +38,8 @@ def load_dataset(path_dir: str, image_size: int) -> AnimeDataset:
     transform = transforms.Compose([
         transforms.Resize((image_size, image_size)),
         transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
+        transforms.ToTensor(),  # Pixels are between [0, 1].
+        transforms.Lambda(lambda t: 2 * t - 1),  # Normalise between [-1, 1].
     ])
 
     return AnimeDataset(paths, transform)
