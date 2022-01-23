@@ -23,27 +23,23 @@ def eval_loader(dataloader: DataLoader, config: dict) -> dict:
     netG, netD = config['netG'], config['netD']
     batch_size, device = config['batch_size'], config['device']
     metrics = {
-        # Discriminator metrics
         'D_real_loss': [],
         'D_real_acc': [],
         'D_fake_loss': [],
         'D_fake_acc': [],
+        'D_GP': [],
         'D_total_loss': [],
-
-        # Generator metrics
-        'G_loss': [],
-        'G_acc': [],
     }
 
     netG.to(device), netD.to(device)
     netG.eval(), netD.eval()
     loss = nn.BCEWithLogitsLoss()
 
-    with torch.no_grad():
-        # Eval discriminator
-        for real in dataloader:
-            real = real.to(device)
+    # Eval discriminator
+    for real in dataloader:
+        real = real.to(device)
 
+        with torch.no_grad():
             # On real images first
             predicted = netD(real)
             errD_real = loss(predicted, torch.ones_like(predicted))
@@ -56,34 +52,111 @@ def eval_loader(dataloader: DataLoader, config: dict) -> dict:
             predicted = netD(fake)
             errD_fake = loss(predicted, torch.zeros_like(predicted))
             metrics['D_fake_loss'].append(errD_fake.item())
-            metrics['D_fake_acc'].append(torch.sigmoid(-predicted).mean().item())
+            metrics['D_fake_acc'].append(1 - torch.sigmoid(predicted).mean().item())
 
-            # Final discriminator loss
-            errD = config['weight_err_d_real'] * errD_real + errD_fake
-            metrics['D_total_loss'].append(errD.item())
+        # Compute gradient penalty
+        fake = fake[:len(real)]  # Match the batch size (in case there is too much fakes)
+        errD_gradient = gradient_penalty(netD, real, fake, device)
+        metrics['D_GP'].append(errD_gradient.item())
 
-        # Eval generator
-        for _ in range(len(dataloader)):
-            latents = netG.generate_z(batch_size).to(device)
-            fake = netG(latents)
-            predicted = netD(fake)
-            errG = loss(predicted, torch.ones_like(predicted))  # We want G to fool D
-            metrics['G_loss'].append(errG.item())
-            metrics['G_acc'].append(torch.sigmoid(predicted).mean().item())
+        # Final discriminator loss
+        errD = errD_real + errD_fake + config['weight_GP'] * errD_gradient
+        metrics['D_total_loss'].append(errD.item())
 
     for metric_name, values in metrics.items():
         metrics[metric_name] = np.mean(values)
 
+    metrics['D_total_acc'] = (
+        metrics['D_real_acc'] + metrics['D_fake_acc']
+    ) / 2
+
     return metrics
+
+
+def gradient_penalty(
+        netD: Discriminator,
+        real: torch.FloatTensor,
+        fake: torch.FloatTensor,
+        device: str,
+    ):
+    """Compute the gradient wrt to a weighted average of real and fake samples.
+
+    Enforce the critic gradients to be close to 1 (1-Lipchitz).
+    """
+    alpha = torch.rand_like(real).to(device)
+    interpolated = real * alpha + fake * (1 - alpha)
+    interpolated = interpolated.requires_grad_(True)
+    predicted = netD(interpolated)
+
+    weight = torch.ones_like(predicted)
+    gradient = torch.autograd.grad(
+        outputs = predicted,
+        inputs = interpolated,
+        grad_outputs = weight,
+        retain_graph = True,
+        create_graph = True,
+        only_inputs = True,
+    )[0]
+
+    gradient = gradient.view(gradient.shape[0], -1)
+    return (gradient.norm(2, dim=1) - 1).pow(2).mean()
+
+
+def train_critic(config: dict):
+    """Train the discriminator for one epoch.
+    """
+    netG, netD = config['netG'], config['netD']
+    train_loader, optimD = config['train_loader'], config['optimD']
+    batch_size, device = config['batch_size'], config['device']
+
+    for real in train_loader:
+        optimD.zero_grad()
+        real = real.to(device)
+
+        # On real images first
+        predicted = netD(real)
+        errD_real = -torch.mean(predicted)
+
+        # On fake images then
+        latents = netG.generate_z(batch_size).to(device)
+        fake = netG(latents).detach()
+        predicted = netD(fake)
+        errD_fake = torch.mean(predicted)
+
+        # Compute gradient penalty
+        fake = fake[:len(real)]  # Match the batch size (in case there is too much fakes)
+        errD_gradient = gradient_penalty(netD, real, fake, device)
+
+        # Final discriminator loss
+        errD = errD_real + errD_fake + config['weight_GP'] * errD_gradient
+        errD.backward()
+        optimD.step()
+
+
+def train_generator(config: dict):
+    """Train the generator for one epoch.
+    """
+    netG, netD = config['netG'], config['netD']
+    train_loader, optimG = config['train_loader'], config['optimG']
+    batch_size, device = config['batch_size'], config['device']
+
+    for _ in range(len(train_loader)):
+        optimG.zero_grad()
+
+        latents = netG.generate_z(batch_size).to(device)
+        fake = netG(latents)
+        predicted = netD(fake)
+        errG = -torch.mean(predicted)  # We want G to fool D
+
+        errG.backward()
+        optimG.step()
 
 
 def train(config: dict):
     """Training loop.
     WandB should be initialise as the results will be logged.
 
-    Use some methods for stability:
-        - Label smoothing
-        - Noise in front of the discriminator
+    Use label smoothing for stability.
     """
     netG, netD = config['netG'], config['netD']
     optimG, optimD = config['optimG'], config['optimD']
@@ -94,60 +167,17 @@ def train(config: dict):
     torch.manual_seed(config['seed'])
     netG.to(device), netD.to(device)
     fixed_latent = netG.generate_z(64).to(device)
-    loss = nn.BCEWithLogitsLoss()
 
     for _ in tqdm(range(config['epochs'])):
         netG.train()
         netD.train()
 
         # Train discriminator
-        for real in train_loader:
-            optimD.zero_grad()
-            real = real.to(device)
-
-            # On real images first
-            real = real + torch.randn((real.shape[0], 3, dim_im, dim_im)).to(device)
-            predicted = netD(real)
-
-            label = 1 - torch.rand(1).to(device) / 3
-            errD_real = loss(
-                predicted,
-                label * torch.ones_like(predicted)  # Label smoothing
-            )
-
-            # On fake images then
-            latents = netG.generate_z(batch_size).to(device)
-            fake = netG(latents).detach()
-            fake = fake + torch.randn((batch_size, 3, dim_im, dim_im)).to(device)
-            predicted = netD(fake)
-
-            label = torch.rand(1).to(device) / 3
-            errD_fake = loss(
-                predicted,
-                label * torch.zeros_like(predicted)
-            )
-
-            # Final discriminator loss
-            errD = config['weight_err_d_real'] * errD_real + errD_fake
-            errD.backward()
-            optimD.step()
+        for _ in range(config['iter_D']):
+            train_critic(config)
 
         # Train generator
-        for _ in range(len(train_loader)):
-            optimG.zero_grad()
-
-            latents = netG.generate_z(batch_size).to(device)
-            fake = netG(latents)
-            fake = fake + torch.randn((batch_size, 3, dim_im, dim_im)).to(device)
-            predicted = netD(fake)
-
-            label = 1 - torch.rand(1).to(device) / 3
-            errG = loss(
-                predicted,
-                label * torch.ones_like(predicted)
-            )  # We want G to fool D
-            errG.backward()
-            optimG.step()
+        train_generator(config)
 
         # Generate fake images and logs everything to WandB
         with torch.no_grad():
@@ -192,6 +222,7 @@ def prepare_training(data_path: str, config: dict) -> dict:
         config['dim_image'],
         config['n_first_channels'],
         config['n_layers_d_block'],
+        config['dropout'],
     )
 
     # Optimizers
@@ -231,7 +262,7 @@ def create_config() -> dict:
         # Global params
         'dim_image': 32,
         'batch_size': 128,
-        'epochs': 50,
+        'epochs': 10,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'seed': 0,
 
@@ -243,9 +274,11 @@ def create_config() -> dict:
 
         # Discriminator params
         'n_first_channels': 8,
-        'n_layers_d_block': 4,
+        'n_layers_d_block': 2,
+        'dropout': 0.2,
         'lr_d': 1e-4,
-        'weight_err_d_real': 1,
+        'iter_D': 3,
+        'weight_GP': 0.1,
     }
 
     return config

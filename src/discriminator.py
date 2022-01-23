@@ -11,11 +11,12 @@ from torchinfo import summary
 class DiscriminatorBlock(nn.Module):
     """Two layers of convolution and one layer of downsampling.
     """
-    def __init__(self, n_channels: int, n_filters: int):
+    def __init__(self, n_channels: int, n_filters: int, dropout: float):
         super().__init__()
 
         self.convs = nn.ModuleList([
             nn.Sequential(
+                nn.Dropout(p=dropout),
                 nn.utils.spectral_norm(
                     nn.Conv2d(n_channels, n_channels, 3, 1, 1, bias=False)
                 ),  # Spectral norm for stability training
@@ -48,18 +49,31 @@ class DiscriminatorBlock(nn.Module):
 class Discriminator(nn.Module):
     """Basic discriminator implementation.
     """
-    def __init__(self, dim: int, n_first_channels: int, n_layers_block: int):
+    def __init__(self,
+            dim: int,
+            n_first_channels: int,
+            n_layers_block: int,
+            dropout: float,
+        ):
         super().__init__()
         n_blocks = int(np.log2(dim))
 
-        self.first_conv = nn.Conv2d(3, n_first_channels, 3, 1, 1)
+        self.first_conv = nn.Sequential(
+                nn.Dropout(p=dropout),
+                nn.utils.spectral_norm(
+                    nn.Conv2d(3, n_first_channels, 3, 1, 1)
+                ),
+        )
+
         self.blocks = nn.ModuleList([
-            DiscriminatorBlock(n_first_channels << block_id, n_layers_block)
+            DiscriminatorBlock(n_first_channels << block_id, n_layers_block, dropout)
             for block_id in range(n_blocks)
         ])
 
         self.classify = nn.Sequential(
-            nn.Conv2d(n_first_channels << n_blocks, 1, 3, 1, 1, bias=False),
+            nn.utils.spectral_norm(
+                nn.Conv2d(n_first_channels << n_blocks, 1, 3, 1, 1, bias=False),
+            ),
             nn.Flatten(),
         )
 

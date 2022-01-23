@@ -22,19 +22,21 @@ params = [
     'batch_size',
     'dim_image',
     'epochs',
+    'dropout',
     'lr_g',
     'lr_d',
-    'weight_err_d_real',
+    'iter_D',
+    'weight_GP',
     'device',
 ]
 print('\n\nTraining details:')
 for param in params:
+    expand = 20
     if 'lr' in param:
-        print(f'\t[{param}]\t\t\t-\t{config[param]:.1e}')
-    elif param == 'weight_err_d_real':
-        print(f'\t[{param}]\t-\t{config[param]}')
+        print(f'     [{param}]\t-\t{config[param]:.1e}'.expandtabs(expand))
     else:
-        print(f'\t[{param}]\t\t-\t{config[param]}')
+        print(f'     [{param}]\t-\t{config[param]}'.expandtabs(expand))
+
 
 print(f'\nContinue with training for {config["epochs"]} epochs?')
 if input('[y/n]> ') != 'y':
@@ -42,7 +44,7 @@ if input('[y/n]> ') != 'y':
 
 with wb.init(
     entity='pierrotlc',
-    group=f'Non Linear GAN - {config["dim_image"]}x{config["dim_image"]}',
+    group=f'Wasserstein - {config["dim_image"]}x{config["dim_image"]}',
     project='AnimeStyleGAN',
     # project='test',
     config=config,
