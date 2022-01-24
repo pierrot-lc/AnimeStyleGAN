@@ -33,7 +33,6 @@ def eval_loader(dataloader: DataLoader, config: dict) -> dict:
 
     netG.to(device), netD.to(device)
     netG.eval(), netD.eval()
-    loss = nn.BCEWithLogitsLoss()
 
     # Eval discriminator
     for real in dataloader:
@@ -42,7 +41,7 @@ def eval_loader(dataloader: DataLoader, config: dict) -> dict:
         with torch.no_grad():
             # On real images first
             predicted = netD(real)
-            errD_real = loss(predicted, torch.ones_like(predicted))
+            errD_reak = -torch.mean(predicted)
             metrics['D_real_loss'].append(errD_real.item())
             metrics['D_real_acc'].append(torch.sigmoid(predicted).mean().item())
 
@@ -50,7 +49,7 @@ def eval_loader(dataloader: DataLoader, config: dict) -> dict:
             latents = netG.generate_z(batch_size).to(device)
             fake = netG(latents)
             predicted = netD(fake)
-            errD_fake = loss(predicted, torch.zeros_like(predicted))
+            errD_fake = torch.mean(predicted)
             metrics['D_fake_loss'].append(errD_fake.item())
             metrics['D_fake_acc'].append(1 - torch.sigmoid(predicted).mean().item())
 
@@ -96,7 +95,7 @@ def gradient_penalty(
         retain_graph = True,
         create_graph = True,
         only_inputs = True,
-    )[0]
+    )[0]  # Compute gradient w.r.t. interpolated
 
     gradient = gradient.view(gradient.shape[0], -1)
     return (gradient.norm(2, dim=1) - 1).pow(2).mean()
@@ -229,10 +228,12 @@ def prepare_training(data_path: str, config: dict) -> dict:
     config['optimG'] = optim.Adam(
         config['netG'].parameters(),
         lr=config['lr_g'],
+        betas=config['betas_g'],
     )
-    config['optimD'] = optim.SGD(
+    config['optimD'] = optim.Adam(
         config['netD'].parameters(),
         lr=config['lr_d'],
+        betas=config['betas_d'],
     )
 
     # Datasets and dataloaders
@@ -271,14 +272,16 @@ def create_config() -> dict:
         'dim_z': 32,
         'n_layers_z': 3,
         'lr_g': 1e-5,
+        'betas_g': (0.5, 0.99),
 
         # Discriminator params
         'n_first_channels': 8,
         'n_layers_d_block': 2,
-        'dropout': 0.2,
-        'lr_d': 1e-4,
-        'iter_D': 3,
-        'weight_GP': 0.1,
+        'dropout': 0.3,
+        'lr_d': 1e-5,
+        'betas_d': (0.5, 0.99),
+        'iter_D': 4,
+        'weight_GP': 3,
     }
 
     return config
