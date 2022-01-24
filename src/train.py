@@ -41,7 +41,7 @@ def eval_loader(dataloader: DataLoader, config: dict) -> dict:
         with torch.no_grad():
             # On real images first
             predicted = netD(real)
-            errD_reak = -torch.mean(predicted)
+            errD_real = -torch.mean(predicted)
             metrics['D_real_loss'].append(errD_real.item())
             metrics['D_real_acc'].append(torch.sigmoid(predicted).mean().item())
 
