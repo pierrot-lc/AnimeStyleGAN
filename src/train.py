@@ -102,18 +102,20 @@ def train_critic(config: dict):
 
         # On real images first
         predicted = netD(real)
+        labels = 1 - torch.rand_like(predicted, device=device) / 5
         errD_real = loss(
             predicted,
-            torch.ones_like(predicted).to(device),
+            labels
         )
 
         # On fake images then
         latents = netG.generate_z(b_size).to(device)
         fake = netG(latents).detach()
         predicted = netD(fake)
+        labels = torch.rand_like(predicted, device=device) / 5
         errD_fake = loss(
             predicted,
-            torch.zeros_like(predicted).to(device),
+            labels
         )
 
         # Final discriminator loss
@@ -206,6 +208,7 @@ def prepare_training(data_path: str, config: dict) -> dict:
         config['n_channels'],
         config['dim_z'],
         config['n_layers_z']
+        config['dropout'],
     )
     config['netD'] = Discriminator(
         config['dim_image'],
@@ -253,22 +256,22 @@ def create_config() -> dict:
         # Global params
         'dim_image': 32,
         'batch_size': 64,
-        'epochs': 10,
+        'epochs': 30,
+        'dropout': 0.3,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'seed': 0,
 
         # StyleGAN params
-        'n_channels': 128,
+        'n_channels': 256,
         'dim_z': 100,
         'n_layers_z': 4,
-        'lr_g': 1e-4,
+        'lr_g': 1e-6,
         'betas_g': (0.5, 0.99),
 
         # Discriminator params
-        'n_first_channels': 8,
+        'n_first_channels': 16,
         'n_layers_d_block': 2,
-        'dropout': 0.3,
-        'lr_d': 5e-4,
+        'lr_d': 1e-4,
         'betas_d': (0.5, 0.99),
     }
 

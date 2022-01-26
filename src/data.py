@@ -51,13 +51,3 @@ def plot_image(image: torch.FloatTensor):
 
     plt.imshow(image)
     plt.show()
-
-
-if __name__ == '__main__':
-    path_dir = '../data/train'
-    image_size = 64
-
-    dataset = load_dataset(path_dir, image_size)
-    image = dataset[0]
-    print(f'Dataset of {len(dataset):,} images.')
-    plot_image(image)

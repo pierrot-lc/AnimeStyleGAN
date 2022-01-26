@@ -98,7 +98,13 @@ class SynthesisBlock(nn.Module):
     """Upsample and then apply style vectors and convolutions.
     Reduce the number of filters.
     """
-    def __init__(self, dim: int, n_channels: int, first_block: bool = False):
+    def __init__(
+            self,
+            dim: int,
+            n_channels: int,
+            dropout: float,
+            first_block: bool = False,
+        ):
         super().__init__()
         self.dim = dim
         self.n_channels = n_channels
@@ -107,11 +113,13 @@ class SynthesisBlock(nn.Module):
         if not first_block:  # Upsample and reducing channels.
             self.upsample = nn.ConvTranspose2d(2 * n_channels, n_channels, 4, 2, 1)
             self.conv1 = nn.Sequential(
+                nn.Dropout(p=dropout),
                 nn.Conv2d(n_channels, n_channels, 3, 1, 1),
                 nn.LeakyReLU(),
             )
 
         self.conv2 = nn.Sequential(
+            nn.Dropout(p=dropout),
             nn.Conv2d(n_channels, n_channels, 3, 1, 1),
             nn.LeakyReLU(),
         )
@@ -179,7 +187,7 @@ class SynthesisBlock(nn.Module):
 class SynthesisNetwork(nn.Module):
     """Stack of synthesis blocks.
     """
-    def __init__(self, dim_final: int, n_channels: int):
+    def __init__(self, dim_final: int, n_channels: int, dropout: float):
         super().__init__()
         INIT_DIM = 4
         n_blocks = int(np.log2(dim_final) - np.log2(INIT_DIM)) + 1
@@ -190,7 +198,12 @@ class SynthesisNetwork(nn.Module):
         )
 
         self.blocks = nn.ModuleList([
-            SynthesisBlock(INIT_DIM << block_id, n_channels >> block_id, first_block = block_id == 0)
+            SynthesisBlock(
+                INIT_DIM << block_id,
+                n_channels >> block_id,
+                dropout,
+                first_block = block_id == 0
+            )
             for block_id in range(n_blocks)
         ])
 
@@ -237,11 +250,12 @@ class StyleGAN(nn.Module):
             n_channels: int,
             dim_z: int,
             n_layers_z: int,
+            dropout: float,
         ):
         super().__init__()
 
         self.mapping = MappingNetwork(dim_z, n_layers_z)
-        self.synthesis = SynthesisNetwork(dim_final, n_channels)
+        self.synthesis = SynthesisNetwork(dim_final, n_channels, dropout)
 
     def forward(self, z: torch.FloatTensor) -> torch.FloatTensor:
         """Take the latent vectors and produce images.
@@ -262,15 +276,3 @@ class StyleGAN(nn.Module):
 
     def generate_z(self, batch_size: int) -> torch.FloatTensor:
         return self.mapping.generate_z(batch_size)
-
-
-if __name__ == '__main__':
-    config = {
-        'dim_final': 32,
-        'n_channels': 128,
-        'dim_z': 10,
-        'n_layers_z': 3,
-    }
-
-    model = StyleGAN(**config)
-    summary(model, input_size=([128, config['dim_z']]))

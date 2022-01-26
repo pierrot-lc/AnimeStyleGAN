@@ -98,14 +98,3 @@ class Discriminator(nn.Module):
 
         y = self.classify(x)
         return y
-
-
-if __name__ == '__main__':
-    config = {
-        'dim': 64,
-        'n_first_channels': 4,
-        'n_layers_block': 3,
-    }
-
-    model = Discriminator(**config)
-    summary(model, input_size=([128, 3, 64, 64]))
