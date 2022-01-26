@@ -24,9 +24,9 @@ params = [
     'epochs',
     'dropout',
     'lr_g',
+    'betas_g',
     'lr_d',
-    'iter_D',
-    'weight_GP',
+    'betas_d',
     'device',
 ]
 print('\n\nTraining details:')
@@ -44,7 +44,7 @@ if input('[y/n]> ') != 'y':
 
 with wb.init(
     entity='pierrotlc',
-    group=f'Wasserstein - {config["dim_image"]}x{config["dim_image"]}',
+    group=f'BCE - {config["dim_image"]}x{config["dim_image"]}',
     project='AnimeStyleGAN',
     # project='test',
     config=config,
