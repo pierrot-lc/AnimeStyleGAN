@@ -63,7 +63,7 @@ def eval_loader(dataloader: DataLoader, config: dict) -> dict:
             )
             metrics['D_fake_loss'].append(errD_fake.item())
             metrics['fake_acc'].append(
-                torch.sigmoid(predicted).mean().item()
+                1 - torch.sigmoid(predicted).mean().item()
             )
 
             # Final discriminator loss
