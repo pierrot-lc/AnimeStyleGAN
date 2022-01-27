@@ -19,7 +19,7 @@ class MappingNetwork(nn.Module):
         self.dim_z = dim_z
 
         self.norm = nn.LayerNorm(dim_z)
-        self.fully_connected = nn.ModuleList([
+        self.layers = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(dim_z, dim_z),
                 nn.LayerNorm(dim_z),
@@ -27,7 +27,8 @@ class MappingNetwork(nn.Module):
             )
             for _ in range(n_layers)
         ])
-        self.out_layer = nn.Linear(dim_z, dim_z)
+
+        self.out = nn.Linear(dim_z, dim_z)
 
     def forward(self, z: torch.FloatTensor) -> torch.FloatTensor:
         """Compute the style given the latent z.
@@ -43,9 +44,9 @@ class MappingNetwork(nn.Module):
                 Shape of [batch_size, dim_z].
         """
         z = self.norm(z)
-        for layer in self.fully_connected:
-            z = layer(z)
-        w = self.out_layer(z)
+        for layer in self.layers:
+            z = z + layer(z)
+        w = self.out(z)
         return w
 
     def generate_z(self, batch_size: int) -> torch.FloatTensor:
@@ -60,7 +61,11 @@ class AdaIN(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x: torch.FloatTensor, y: torch.FloatTensor) -> torch.FloatTensor:
+    def forward(
+            self,
+            x: torch.FloatTensor,
+            y: torch.FloatTensor
+        ) -> torch.FloatTensor:
         """Apply the style y to the images x.
 
         Args
@@ -75,20 +80,16 @@ class AdaIN(nn.Module):
             x: Batch of images with style y.
                 Shape of [batch_size, n_channels, dim_height, dim_width].
         """
-        eps = 1e-5  # For numerical stability
+        eps = 1e-9  # For numerical stability
 
-        mean_x = torch.mean(x, dim=[2, 3])
-        std_x = torch.std(x, dim=[2, 3]) + eps
+        mean_x = torch.mean(x, dim=[2, 3], keepdims=True)
+        std_x = torch.std(x, dim=[2, 3], keepdims=True) + eps
 
         mean_y = torch.mean(y, dim=1)
         std_y = torch.std(y, dim=1) + eps
 
-        # Expand for shape matching
-        mean_x = einops.rearrange(mean_x, 'b (c h w) -> b c h w', h=1, w=1)
-        std_x = einops.rearrange(std_x, 'b (c h w) -> b c h w', h=1, w=1)
-
-        mean_y = einops.rearrange(mean_y, '(b c h w) -> b c h w', c=1, h=1, w=1)
-        std_y = einops.rearrange(std_y, '(b c h w) -> b c h w', c=1, h=1, w=1)
+        mean_y = einops.repeat(mean_y, 'b -> b c h w', c=x.shape[1], h=1, w=1)
+        std_y = einops.repeat(std_y, 'b -> b c h w', c=x.shape[1], h=1, w=1)
 
         x = std_y * (x - mean_x) / std_x + mean_y
         return x

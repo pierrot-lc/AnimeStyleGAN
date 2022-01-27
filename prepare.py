@@ -23,8 +23,8 @@ def extract_images(archive_path: str, dir_tgt: str):
     # Only select the subdir with all the images (others are duplicates)
     print(f'Moving to {dir_tgt} directory...')
     os.makedirs(dir_tgt)
-    for filename in os.listdir('archive/data/data'):
-        filepath = os.path.join('archive/data/data', filename)
+    for filename in os.listdir('archive/images'):
+        filepath = os.path.join('archive/images', filename)
         n_filepath = os.path.join(dir_tgt, filename)
         shutil.move(filepath, n_filepath)
 
@@ -65,7 +65,7 @@ def split_images(
 
 def init_project():
     extract_images('archive.zip', 'data')
-    split_images('data')
+    # split_images('data')
 
     print('Creating models directory...')
     if not os.path.exists('models'):

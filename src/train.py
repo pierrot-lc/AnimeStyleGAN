@@ -91,11 +91,11 @@ def train_critic(config: dict):
     """Train the discriminator for one epoch.
     """
     netG, netD = config['netG'], config['netD']
-    train_loader, optimD = config['train_loader'], config['optimD']
+    dataloader, optimD = config['dataloader'], config['optimD']
     device = config['device']
     loss = nn.BCEWithLogitsLoss()
 
-    for real in train_loader:
+    for real in dataloader:
         optimD.zero_grad()
         real = real.to(device)
         b_size = real.shape[0]
@@ -128,11 +128,11 @@ def train_generator(config: dict):
     """Train the generator for one epoch.
     """
     netG, netD = config['netG'], config['netD']
-    train_loader, optimG = config['train_loader'], config['optimG']
+    dataloader, optimG = config['dataloader'], config['optimG']
     batch_size, device = config['batch_size'], config['device']
     loss = nn.BCEWithLogitsLoss()
 
-    for _ in range(len(train_loader)):
+    for _ in range(len(dataloader)):
         optimG.zero_grad()
 
         latents = netG.generate_z(batch_size).to(device)
@@ -154,8 +154,7 @@ def train(config: dict):
     Use label smoothing for stability.
     """
     netG, netD = config['netG'], config['netD']
-    optimG, optimD = config['optimG'], config['optimD']
-    train_loader, test_loader = config['train_loader'], config['test_loader']
+    dataloader = config['dataloader']
     batch_size, device = config['batch_size'], config['device']
     dim_im = config['dim_image']
 
@@ -178,7 +177,7 @@ def train(config: dict):
             fake = netG(fixed_latent).cpu()
 
         logs = dict()
-        metrics = eval_loader(train_loader, config)
+        metrics = eval_loader(dataloader, config)
         for metric_name, value in metrics.items():
             logs[f'{metric_name}'] = value
 
@@ -207,7 +206,7 @@ def prepare_training(data_path: str, config: dict) -> dict:
         config['dim_image'],
         config['n_channels'],
         config['dim_z'],
-        config['n_layers_z']
+        config['n_layers_z'],
         config['dropout'],
     )
     config['netD'] = Discriminator(
@@ -229,18 +228,10 @@ def prepare_training(data_path: str, config: dict) -> dict:
         betas=config['betas_d'],
     )
 
-    # Datasets and dataloaders
-    train_dataset = load_dataset(os.path.join(data_path, 'train'), config['dim_image'])
-    test_dataset = load_dataset(os.path.join(data_path, 'test'), config['dim_image'])
-
-    config['train_loader'] = DataLoader(
-        train_dataset,
-        batch_size=config['batch_size'],
-        shuffle=True,
-        num_workers=2,
-    )
-    config['test_loader'] = DataLoader(
-        test_dataset,
+    # Dataset and dataloader
+    dataset = load_dataset(data_path, config['dim_image'])
+    config['dataloader'] = DataLoader(
+        dataset,
         batch_size=config['batch_size'],
         shuffle=True,
         num_workers=2,
@@ -256,22 +247,22 @@ def create_config() -> dict:
         # Global params
         'dim_image': 32,
         'batch_size': 64,
-        'epochs': 30,
+        'epochs': 100,
         'dropout': 0.3,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'seed': 0,
 
         # StyleGAN params
-        'n_channels': 256,
+        'n_channels': 32,
         'dim_z': 100,
-        'n_layers_z': 4,
-        'lr_g': 1e-6,
+        'n_layers_z': 2,
+        'lr_g': 1e-4,
         'betas_g': (0.5, 0.99),
 
         # Discriminator params
-        'n_first_channels': 16,
+        'n_first_channels': 2,
         'n_layers_d_block': 2,
-        'lr_d': 1e-4,
+        'lr_d': 1e-3,
         'betas_d': (0.5, 0.99),
     }
 

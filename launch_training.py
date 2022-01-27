@@ -13,7 +13,7 @@ config = create_config()
 config = prepare_training('./data/', config)
 
 print('Generator model:')
-summary(config['netG'], input_size=(config['batch_size'], config['dim_z']))
+summary(config['netG'], input_size=(config['netG'].generate_z(1).shape))
 
 print('\n\nDiscriminator model:')
 summary(config['netD'], input_size=(config['batch_size'], 3, config['dim_image'], config['dim_image']))
@@ -44,9 +44,8 @@ if input('[y/n]> ') != 'y':
 
 with wb.init(
     entity='pierrotlc',
-    group=f'BCE - {config["dim_image"]}x{config["dim_image"]}',
+    group=f'Simpler - {config["dim_image"]}x{config["dim_image"]}',
     project='AnimeStyleGAN',
-    # project='test',
     config=config,
     save_code=True,
 ):
