@@ -1,6 +1,7 @@
 """Training functions.
 """
 import os
+from collections import defaultdict
 
 import numpy as np
 import wandb as wb
@@ -16,6 +17,80 @@ from src.discriminator import Discriminator
 from src.data import load_dataset
 
 
+def eval_critic_batch(
+        real: torch.FloatTensor,
+        config: dict
+    ) -> dict:
+    """Eval the critic on one batch of data.
+    Return the metrics.
+    """
+    netG, netD = config['netG'], config['netD']
+    device = config['device']
+    loss = config['loss']
+
+    real = real.to(device)
+    b_size = real.shape[0]
+
+    metrics = dict()
+
+    # On real images first
+    predicted = netD(real)
+    labels = 1 - torch.rand_like(predicted, device=device) / 5
+    errD_real = loss(
+        predicted,
+        labels
+    )
+
+    metrics['D_real_loss'] = errD_real
+    metrics['real_acc'] = torch.sigmoid(predicted).mean()
+
+
+    # On fake images then
+    latents = netG.generate_z(b_size).to(device)
+    fake = netG(latents).detach()
+    predicted = netD(fake)
+    labels = torch.rand_like(predicted, device=device) / 5
+    errD_fake = loss(
+        predicted,
+        labels
+    )
+
+    metrics['D_fake_loss'] = errD_fake
+    metrics['fake_acc'] = 1 - torch.sigmoid(predicted).mean()
+
+
+    # Final discriminator loss
+    errD = errD_real + errD_fake
+    metrics['D_loss'] = errD
+
+    return metrics
+
+
+def eval_generator_batch(
+        config: dict,
+    ) -> dict:
+    """Evaluate the generator for one batch.
+    Returns the metrics.
+    """
+    netG, netD = config['netG'], config['netD']
+    batch_size, device = config['batch_size'], config['device']
+    loss = config['loss']
+
+    metrics = dict()
+
+    latents = netG.generate_z(batch_size).to(device)
+    fake = netG(latents)
+    predicted = netD(fake)
+    errG = loss(
+        predicted,
+        torch.ones_like(predicted).to(device),
+    )  # We want G to fool D
+
+    metrics['G_loss'] = errG
+
+    return metrics
+
+
 def eval_loader(dataloader: DataLoader, config: dict) -> dict:
     """Evaluate the models on the given dataloader.
     Return the evaluate metrics.
@@ -24,127 +99,27 @@ def eval_loader(dataloader: DataLoader, config: dict) -> dict:
     device, batch_size = config['device'], config['batch_size']
     loss = nn.BCEWithLogitsLoss()
 
-    metrics = {
-        'D_real_loss': [],
-        'D_fake_loss': [],
-        'D_loss': [],
-        'G_loss': [],
-        'real_acc': [],
-        'fake_acc': [],
-    }
+    metrics = defaultdict(list)
 
     netG.to(device), netD.to(device)
     netG.eval(), netD.eval()
 
     with torch.no_grad():
-        # Eval discriminator
         for real in dataloader:
-            real = real.to(device)
-            b_size = real.shape[0]
+            # Eval discriminator
+            metrics_batch = eval_critic_batch(real, config)
+            for m_name, m_value in metrics_batch.items():
+                metrics[m_name].append(m_value.cpu().item())
 
-            # On real images first
-            predicted = netD(real)
-            errD_real = loss(
-                predicted,
-                torch.ones_like(predicted).to(device),
-            )
-            metrics['D_real_loss'].append(errD_real.item())
-            metrics['real_acc'].append(
-                torch.sigmoid(predicted).mean().item()
-            )
-
-            # On fake images then
-            latents = netG.generate_z(b_size).to(device)
-            fake = netG(latents)
-            predicted = netD(fake)
-            errD_fake = loss(
-                predicted,
-                torch.zeros_like(predicted).to(device),
-            )
-            metrics['D_fake_loss'].append(errD_fake.item())
-            metrics['fake_acc'].append(
-                1 - torch.sigmoid(predicted).mean().item()
-            )
-
-            # Final discriminator loss
-            errD = errD_real + errD_fake
-            metrics['D_loss'].append(errD.item())
-
-        for _ in range(len(dataloader)):
-            latents = netG.generate_z(batch_size).to(device)
-            fake = netG(latents)
-            predicted = netD(fake)
-            errG = loss(
-                predicted,
-                torch.ones_like(predicted).to(device),
-            )  # We want G to fool D
-
-            metrics['G_loss'].append(errG.item())
+            # Eval generator
+            metrics_batch = eval_generator_batch(config)
+            for m_name, m_value in metrics_batch.items():
+                metrics[m_name].append(m_value.cpu().item())
 
     for metric_name, values in metrics.items():
         metrics[metric_name] = np.mean(values)
 
     return metrics
-
-
-def train_critic(config: dict):
-    """Train the discriminator for one epoch.
-    """
-    netG, netD = config['netG'], config['netD']
-    dataloader, optimD = config['dataloader'], config['optimD']
-    device = config['device']
-    loss = nn.BCEWithLogitsLoss()
-
-    for real in dataloader:
-        optimD.zero_grad()
-        real = real.to(device)
-        b_size = real.shape[0]
-
-        # On real images first
-        predicted = netD(real)
-        labels = 1 - torch.rand_like(predicted, device=device) / 5
-        errD_real = loss(
-            predicted,
-            labels
-        )
-
-        # On fake images then
-        latents = netG.generate_z(b_size).to(device)
-        fake = netG(latents).detach()
-        predicted = netD(fake)
-        labels = torch.rand_like(predicted, device=device) / 5
-        errD_fake = loss(
-            predicted,
-            labels
-        )
-
-        # Final discriminator loss
-        errD = errD_real + errD_fake
-        errD.backward()
-        optimD.step()
-
-
-def train_generator(config: dict):
-    """Train the generator for one epoch.
-    """
-    netG, netD = config['netG'], config['netD']
-    dataloader, optimG = config['dataloader'], config['optimG']
-    batch_size, device = config['batch_size'], config['device']
-    loss = nn.BCEWithLogitsLoss()
-
-    for _ in range(len(dataloader)):
-        optimG.zero_grad()
-
-        latents = netG.generate_z(batch_size).to(device)
-        fake = netG(latents)
-        predicted = netD(fake)
-        errG = loss(
-            predicted,
-            torch.ones_like(predicted).to(device),
-        )  # We want G to fool D
-
-        errG.backward()
-        optimG.step()
 
 
 def train(config: dict):
@@ -154,6 +129,7 @@ def train(config: dict):
     Use label smoothing for stability.
     """
     netG, netD = config['netG'], config['netD']
+    optimD, optimG = config['optimD'], config['optimG']
     dataloader = config['dataloader']
     batch_size, device = config['batch_size'], config['device']
     dim_im = config['dim_image']
@@ -161,16 +137,28 @@ def train(config: dict):
     torch.manual_seed(config['seed'])
     netG.to(device), netD.to(device)
     fixed_latent = netG.generate_z(64).to(device)
+    config['loss'] = nn.BCEWithLogitsLoss()
 
     for _ in tqdm(range(config['epochs'])):
         netG.train()
         netD.train()
 
-        # Train discriminator
-        train_critic(config)
+        for real in dataloader:
+            # Train discriminator
+            optimD.zero_grad()
+            metrics = eval_critic_batch(real, config)
 
-        # Train generator
-        train_generator(config)
+            loss = metrics['D_loss']
+            loss.backward()
+            optimD.step()
+
+            # Train generator
+            optimG.zero_grad()
+            metrics = eval_generator_batch(config)
+
+            loss = metrics['G_loss']
+            loss.backward()
+            optimG.step()
 
         # Generate fake images and logs everything to WandB
         with torch.no_grad():
@@ -254,7 +242,7 @@ def create_config() -> dict:
 
         # StyleGAN params
         'n_channels': 32,
-        'dim_z': 100,
+        'dim_z': 32,
         'n_layers_z': 2,
         'lr_g': 1e-4,
         'betas_g': (0.5, 0.99),
