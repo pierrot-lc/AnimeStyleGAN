@@ -1,1 +1,1 @@
-Dataset : https://www.kaggle.com/soumikrakshit/anime-faces
+Dataset : https://www.kaggle.com/splcher/animefacedataset
