@@ -130,6 +130,7 @@ def train(config: dict):
     """
     netG, netD = config['netG'], config['netD']
     optimD, optimG = config['optimD'], config['optimG']
+    stepD, stepG = config['stepD'], config['stepG']
     dataloader = config['dataloader']
     batch_size, device = config['batch_size'], config['device']
     dim_im = config['dim_image']
@@ -139,11 +140,14 @@ def train(config: dict):
     fixed_latent = netG.generate_z(64).to(device)
     config['loss'] = nn.BCEWithLogitsLoss()
 
-    for _ in tqdm(range(config['epochs'])):
+    for e in tqdm(range(config['epochs'])):
         netG.train()
         netD.train()
 
+        n_iter = 0
         for real in dataloader:
+            n_iter += 1
+
             # Train discriminator
             optimD.zero_grad()
             metrics = eval_critic_batch(real, config)
@@ -152,6 +156,10 @@ def train(config: dict):
             loss.backward()
             optimD.step()
 
+            if n_iter != config['n_iter_d']:
+                continue
+            n_iter = 0
+
             # Train generator
             optimG.zero_grad()
             metrics = eval_generator_batch(config)
@@ -159,6 +167,9 @@ def train(config: dict):
             loss = metrics['G_loss']
             loss.backward()
             optimG.step()
+
+        stepD.step()
+        stepG.step()
 
         # Generate fake images and logs everything to WandB
         with torch.no_grad():
@@ -209,11 +220,25 @@ def prepare_training(data_path: str, config: dict) -> dict:
         config['netG'].parameters(),
         lr=config['lr_g'],
         betas=config['betas_g'],
+        weight_decay=config['weight_decay_g'],
     )
     config['optimD'] = optim.Adam(
         config['netD'].parameters(),
         lr=config['lr_d'],
         betas=config['betas_d'],
+        weight_decay=config['weight_decay_d'],
+    )
+
+    # Schedulers
+    config['stepG'] = optim.lr_scheduler.MultiStepLR(
+        config['optimG'],
+        milestones=config['milestones_g'],
+        gamma=config['gamma_g'],
+    )
+    config['stepD'] = optim.lr_scheduler.MultiStepLR(
+        config['optimD'],
+        milestones=config['milestones_d'],
+        gamma=config['gamma_d'],
     )
 
     # Dataset and dataloader
@@ -234,24 +259,31 @@ def create_config() -> dict:
     config = {
         # Global params
         'dim_image': 32,
-        'batch_size': 64,
+        'batch_size': 256,
         'epochs': 100,
         'dropout': 0.3,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'seed': 0,
 
         # StyleGAN params
-        'n_channels': 32,
-        'dim_z': 32,
+        'n_channels': 48,
+        'dim_z': 16,
         'n_layers_z': 2,
-        'lr_g': 1e-4,
+        'lr_g': 1e-3,
         'betas_g': (0.5, 0.99),
+        'weight_decay_g': 0,
+        'milestones_g': [5, 10, 20, 30, 60],
+        'gamma_g': 0.7,
 
         # Discriminator params
         'n_first_channels': 2,
         'n_layers_d_block': 2,
         'lr_d': 1e-3,
         'betas_d': (0.5, 0.99),
+        'weight_decay_d': 0,
+        'milestones_d': [5, 10, 20, 30],
+        'gamma_d': 0.8,
+        'n_iter_d': 5,
     }
 
     return config

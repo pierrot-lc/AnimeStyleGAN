@@ -23,19 +23,34 @@ params = [
     'dim_image',
     'epochs',
     'dropout',
+    None,
     'lr_g',
     'betas_g',
+    'weight_decay_g',
+    'milestones_g',
+    'gamma_g',
+    None,
     'lr_d',
     'betas_d',
+    'weight_decay_d',
+    'milestones_d',
+    'gamma_d',
+    'n_iter_d',
+    None,
     'device',
 ]
 print('\n\nTraining details:')
 for param in params:
-    expand = 20
+    if param is None:
+        print('', end='\n')
+        continue
+
+    expand = 25
+    param_exp = f'[{param}]\t'.expandtabs(expand)
     if 'lr' in param:
-        print(f'     [{param}]\t-\t{config[param]:.1e}'.expandtabs(expand))
+        print(f'     {param_exp}-\t\t{config[param]:.1e}')
     else:
-        print(f'     [{param}]\t-\t{config[param]}'.expandtabs(expand))
+        print(f'     {param_exp}-\t\t{config[param]}')
 
 
 print(f'\nContinue with training for {config["epochs"]} epochs?')
@@ -44,7 +59,7 @@ if input('[y/n]> ') != 'y':
 
 with wb.init(
     entity='pierrotlc',
-    group=f'Simpler - {config["dim_image"]}x{config["dim_image"]}',
+    group=f'Balance D and G training - {config["dim_image"]}x{config["dim_image"]}',
     project='AnimeStyleGAN',
     config=config,
     save_code=True,
