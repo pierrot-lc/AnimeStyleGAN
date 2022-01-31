@@ -29,6 +29,7 @@ params = [
     'weight_decay_g',
     'milestones_g',
     'gamma_g',
+    'running_avg_factor_G',
     None,
     'lr_d',
     'betas_d',
@@ -36,6 +37,8 @@ params = [
     'milestones_d',
     'gamma_d',
     'n_iter_d',
+    'weight_fake_loss',
+    'running_avg_factor_D',
     None,
     'device',
 ]
@@ -59,7 +62,7 @@ if input('[y/n]> ') != 'y':
 
 with wb.init(
     entity='pierrotlc',
-    group=f'Balance D and G training - {config["dim_image"]}x{config["dim_image"]}',
+    group=f'Running average - {config["dim_image"]}x{config["dim_image"]}',
     project='AnimeStyleGAN',
     config=config,
     save_code=True,

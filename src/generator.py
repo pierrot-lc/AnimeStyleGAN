@@ -181,8 +181,8 @@ class SynthesisBlock(nn.Module):
         for the forward of this module.
         """
         return torch.randn(
-                size=(batch_size, self.n_channels, self.dim, self.dim)
-        )
+            size=(batch_size, self.n_channels, self.dim, self.dim)
+        ) / 100
 
 
 class SynthesisNetwork(nn.Module):
@@ -190,7 +190,7 @@ class SynthesisNetwork(nn.Module):
     """
     def __init__(self, dim_final: int, n_channels: int, dropout: float):
         super().__init__()
-        INIT_DIM = 4
+        INIT_DIM = 2
         n_blocks = int(np.log2(dim_final) - np.log2(INIT_DIM)) + 1
 
         self.learned_cnst = nn.Parameter(

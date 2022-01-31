@@ -27,11 +27,21 @@ def eval_critic_batch(
     netG, netD = config['netG'], config['netD']
     device = config['device']
     loss = config['loss']
+    running_avg = config['running_avg_D']
+    running_avg_factor = config['running_avg_factor_D']
 
     real = real.to(device)
     b_size = real.shape[0]
 
     metrics = dict()
+
+    # Running avg loss
+    running_avg_loss = [
+        (p - r).pow(2).mean()
+        for p, r in zip(netD.parameters(), running_avg)
+    ]
+    running_avg_loss = sum(running_avg_loss) / len(running_avg_loss)
+    metrics['running_avg_loss_D'] = running_avg_loss
 
     # On real images first
     predicted = netD(real)
@@ -60,8 +70,14 @@ def eval_critic_batch(
 
 
     # Final discriminator loss
-    errD = errD_real + errD_fake
-    metrics['D_loss'] = errD
+    errD = (errD_real + config['weight_fake_loss'] * errD_fake) / 2
+    metrics['D_loss'] = errD + running_avg_loss
+
+    running_avg = [
+        running_avg_factor * r + (1 - running_avg_factor) * p.detach()
+        for r, p in zip(running_avg, netD.parameters())
+    ]
+    config['running_avg_D'] = running_avg
 
     return metrics
 
@@ -75,9 +91,20 @@ def eval_generator_batch(
     netG, netD = config['netG'], config['netD']
     batch_size, device = config['batch_size'], config['device']
     loss = config['loss']
+    running_avg = config['running_avg_G']
+    running_avg_factor = config['running_avg_factor_G']
 
     metrics = dict()
 
+    # Running avg loss
+    running_avg_loss = [
+        (p - r).pow(2).mean()
+        for p, r in zip(netG.parameters(), running_avg)
+    ]
+    running_avg_loss = sum(running_avg_loss) / len(running_avg_loss)
+    metrics['running_avg_loss_G'] = running_avg_loss
+
+    # Generator loss
     latents = netG.generate_z(batch_size).to(device)
     fake = netG(latents)
     predicted = netD(fake)
@@ -86,7 +113,16 @@ def eval_generator_batch(
         torch.ones_like(predicted).to(device),
     )  # We want G to fool D
 
-    metrics['G_loss'] = errG
+    metrics['G_fake_loss'] = errG
+
+    metrics['G_loss'] = errG + running_avg_loss
+
+    # Update running average of the parameters
+    running_avg = [
+        running_avg_factor * r + (1 - running_avg_factor) * p.detach()
+        for r, p in zip(running_avg, netG.parameters())
+    ]
+    config['running_avg_G'] = running_avg
 
     return metrics
 
@@ -140,7 +176,12 @@ def train(config: dict):
     fixed_latent = netG.generate_z(64).to(device)
     config['loss'] = nn.BCEWithLogitsLoss()
 
-    for e in tqdm(range(config['epochs'])):
+    config['running_avg_G'] = [p.detach() for p in netG.parameters()]
+    config['running_avg_D'] = [p.detach() for p in netD.parameters()]
+
+    assert config['n_iter_d'] > 0
+
+    for _ in tqdm(range(config['epochs'])):
         netG.train()
         netD.train()
 
@@ -151,6 +192,7 @@ def train(config: dict):
             # Train discriminator
             optimD.zero_grad()
             metrics = eval_critic_batch(real, config)
+            wb.log(metrics)
 
             loss = metrics['D_loss']
             loss.backward()
@@ -163,6 +205,7 @@ def train(config: dict):
             # Train generator
             optimG.zero_grad()
             metrics = eval_generator_batch(config)
+            wb.log(metrics)
 
             loss = metrics['G_loss']
             loss.backward()
@@ -176,9 +219,9 @@ def train(config: dict):
             fake = netG(fixed_latent).cpu()
 
         logs = dict()
-        metrics = eval_loader(dataloader, config)
-        for metric_name, value in metrics.items():
-            logs[f'{metric_name}'] = value
+        # metrics = eval_loader(dataloader, config)
+        # for metric_name, value in metrics.items():
+            # logs[f'{metric_name}'] = value
 
         logs['Generated images'] = wb.Image(fake)
 
@@ -266,24 +309,27 @@ def create_config() -> dict:
         'seed': 0,
 
         # StyleGAN params
-        'n_channels': 48,
-        'dim_z': 16,
-        'n_layers_z': 2,
-        'lr_g': 1e-3,
-        'betas_g': (0.5, 0.99),
+        'n_channels': 128,
+        'dim_z': 32,
+        'n_layers_z': 4,
+        'lr_g': 1e-4,
+        'betas_g': (0.5, 0.5),
         'weight_decay_g': 0,
-        'milestones_g': [5, 10, 20, 30, 60],
-        'gamma_g': 0.7,
+        'milestones_g': [3, 8, 25],
+        'gamma_g': 0.4,
+        'running_avg_factor_G': 0.8,
 
         # Discriminator params
-        'n_first_channels': 2,
+        'n_first_channels': 6,
         'n_layers_d_block': 2,
-        'lr_d': 1e-3,
+        'lr_d': 1e-4,
         'betas_d': (0.5, 0.99),
         'weight_decay_d': 0,
-        'milestones_d': [5, 10, 20, 30],
-        'gamma_d': 0.8,
-        'n_iter_d': 5,
+        'milestones_d': [3, 8, 25],
+        'gamma_d': 0.6,
+        'n_iter_d': 1,
+        'weight_fake_loss': 1,
+        'running_avg_factor_D': 0.8,
     }
 
     return config
