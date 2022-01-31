@@ -37,14 +37,14 @@ def eval_critic_batch(
 
     # Running avg loss
     running_avg_loss = [
-        (p - r).pow(2).mean()
+        (p - r).pow(2).sum()
         for p, r in zip(netD.parameters(), running_avg)
     ]
-    running_avg_loss = sum(running_avg_loss) / len(running_avg_loss)
+    running_avg_loss = sum(running_avg_loss) # / len(running_avg_loss)
     metrics['running_avg_loss_D'] = running_avg_loss
 
     # On real images first
-    predicted = netD(real)
+    predicted = netD(real + torch.randn_like(real, device=device) / 100)
     labels = 1 - torch.rand_like(predicted, device=device) / 5
     errD_real = loss(
         predicted,
@@ -58,7 +58,7 @@ def eval_critic_batch(
     # On fake images then
     latents = netG.generate_z(b_size).to(device)
     fake = netG(latents).detach()
-    predicted = netD(fake)
+    predicted = netD(fake + torch.randn_like(fake, device=device) / 100)
     labels = torch.rand_like(predicted, device=device) / 5
     errD_fake = loss(
         predicted,
@@ -71,7 +71,7 @@ def eval_critic_batch(
 
     # Final discriminator loss
     errD = (errD_real + config['weight_fake_loss'] * errD_fake) / 2
-    metrics['D_loss'] = errD + running_avg_loss
+    metrics['D_loss'] = errD + config['weight_avg_factor_d'] * running_avg_loss
 
     running_avg = [
         running_avg_factor * r + (1 - running_avg_factor) * p.detach()
@@ -98,16 +98,16 @@ def eval_generator_batch(
 
     # Running avg loss
     running_avg_loss = [
-        (p - r).pow(2).mean()
+        (p - r).pow(2).sum()
         for p, r in zip(netG.parameters(), running_avg)
     ]
-    running_avg_loss = sum(running_avg_loss) / len(running_avg_loss)
+    running_avg_loss = sum(running_avg_loss) # / len(running_avg_loss)
     metrics['running_avg_loss_G'] = running_avg_loss
 
     # Generator loss
     latents = netG.generate_z(batch_size).to(device)
     fake = netG(latents)
-    predicted = netD(fake)
+    predicted = netD(fake + torch.randn_like(fake, device=device) / 100)
     errG = loss(
         predicted,
         torch.ones_like(predicted).to(device),
@@ -115,7 +115,7 @@ def eval_generator_batch(
 
     metrics['G_fake_loss'] = errG
 
-    metrics['G_loss'] = errG + running_avg_loss
+    metrics['G_loss'] = errG + config['weight_avg_factor_g'] * running_avg_loss
 
     # Update running average of the parameters
     running_avg = [
@@ -179,53 +179,53 @@ def train(config: dict):
     config['running_avg_G'] = [p.detach() for p in netG.parameters()]
     config['running_avg_D'] = [p.detach() for p in netD.parameters()]
 
-    assert config['n_iter_d'] > 0
-
     for _ in tqdm(range(config['epochs'])):
         netG.train()
         netD.train()
 
         n_iter = 0
+        logs = defaultdict(list)
         for real in dataloader:
-            n_iter += 1
-
             # Train discriminator
             optimD.zero_grad()
             metrics = eval_critic_batch(real, config)
-            wb.log(metrics)
+            for m, v in metrics.items():
+                logs[m].append(v.item())
 
             loss = metrics['D_loss']
             loss.backward()
             optimD.step()
 
-            if n_iter != config['n_iter_d']:
-                continue
-            n_iter = 0
-
             # Train generator
             optimG.zero_grad()
             metrics = eval_generator_batch(config)
-            wb.log(metrics)
+            for m, v in metrics.items():
+                logs[m].append(v.item())
 
             loss = metrics['G_loss']
             loss.backward()
             optimG.step()
 
+            n_iter += 1
+            if n_iter < config['n_iter_log']:
+                continue
+
+            for m, v in logs.items():
+                logs[m] = np.mean(v)
+
+            # Generate fake images and logs everything to WandB
+            with torch.no_grad():
+                fake = netG(fixed_latent).cpu()
+
+            logs['Generated images'] = wb.Image(fake)
+            wb.log(logs)
+
+            n_iter = 0
+            logs = defaultdict(list)
+
+
         stepD.step()
         stepG.step()
-
-        # Generate fake images and logs everything to WandB
-        with torch.no_grad():
-            fake = netG(fixed_latent).cpu()
-
-        logs = dict()
-        # metrics = eval_loader(dataloader, config)
-        # for metric_name, value in metrics.items():
-            # logs[f'{metric_name}'] = value
-
-        logs['Generated images'] = wb.Image(fake)
-
-        wb.log(logs)
 
         # Save models on disk
         torch.save(netG.state_dict(), 'models/netG.pth')
@@ -250,6 +250,7 @@ def prepare_training(data_path: str, config: dict) -> dict:
         config['dim_z'],
         config['n_layers_z'],
         config['dropout'],
+        config['n_noise'],
     )
     config['netD'] = Discriminator(
         config['dim_image'],
@@ -302,34 +303,37 @@ def create_config() -> dict:
     config = {
         # Global params
         'dim_image': 32,
-        'batch_size': 256,
-        'epochs': 100,
+        'batch_size': 64,
+        'epochs': 50,
         'dropout': 0.3,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'seed': 0,
+        'n_iter_log': 200,
 
         # StyleGAN params
-        'n_channels': 128,
+        'n_channels': 64,
         'dim_z': 32,
         'n_layers_z': 4,
-        'lr_g': 1e-4,
+        'n_noise': 10,
+        'lr_g': 1e-3,
         'betas_g': (0.5, 0.5),
         'weight_decay_g': 0,
-        'milestones_g': [3, 8, 25],
-        'gamma_g': 0.4,
-        'running_avg_factor_G': 0.8,
+        'milestones_g': [3, 8, 25, 50, 75, 100],
+        'gamma_g': 0.5,
+        'running_avg_factor_G': 0.9,
+        'weight_avg_factor_g': 1,
 
         # Discriminator params
-        'n_first_channels': 6,
+        'n_first_channels': 4,
         'n_layers_d_block': 2,
-        'lr_d': 1e-4,
+        'lr_d': 1e-3,
         'betas_d': (0.5, 0.99),
         'weight_decay_d': 0,
-        'milestones_d': [3, 8, 25],
-        'gamma_d': 0.6,
-        'n_iter_d': 1,
+        'milestones_d': [3, 8, 25, 50, 75, 100],
+        'gamma_d': 0.65,
         'weight_fake_loss': 1,
-        'running_avg_factor_D': 0.8,
+        'running_avg_factor_D': 0.9,
+        'weight_avg_factor_d': 1,
     }
 
     return config

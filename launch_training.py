@@ -30,15 +30,16 @@ params = [
     'milestones_g',
     'gamma_g',
     'running_avg_factor_G',
+    'weight_avg_factor_g',
     None,
     'lr_d',
     'betas_d',
     'weight_decay_d',
     'milestones_d',
     'gamma_d',
-    'n_iter_d',
     'weight_fake_loss',
     'running_avg_factor_D',
+    'weight_avg_factor_d',
     None,
     'device',
 ]
@@ -62,7 +63,7 @@ if input('[y/n]> ') != 'y':
 
 with wb.init(
     entity='pierrotlc',
-    group=f'Running average - {config["dim_image"]}x{config["dim_image"]}',
+    group=f'ADAIN - {config["dim_image"]}x{config["dim_image"]}',
     project='AnimeStyleGAN',
     config=config,
     save_code=True,
