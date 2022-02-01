@@ -102,6 +102,7 @@ class SynthesisBlock(nn.Module):
     ----------
         dim:            Dimension size of the input (width/height).
         n_channels:     Number of channels of the output.
+        n_layers:       Number of layers in this block.
         dropout:        Prob of the dropout layers.
         n_noise:        Number of filters in the noisy inputs.
         dim_style:      Dimension size of the style input.
@@ -114,6 +115,7 @@ class SynthesisBlock(nn.Module):
             self,
             dim: int,
             n_channels: int,
+            n_layers: int,
             dropout: float,
             n_noise: int,
             dim_style: int,
@@ -127,17 +129,20 @@ class SynthesisBlock(nn.Module):
 
         if not first_block:  # Upsample and reducing channels.
             self.upsample = nn.ConvTranspose2d(2 * n_channels, n_channels, 4, 2, 1)
-            self.conv1 = nn.Sequential(
+            self.conv = nn.Sequential(
                 nn.Dropout(p=dropout),
                 nn.Conv2d(n_channels, n_channels, 3, 1, 1),
                 nn.LeakyReLU(),
             )
 
-        self.conv2 = nn.Sequential(
-            nn.Dropout(p=dropout),
-            nn.Conv2d(n_channels, n_channels, 3, 1, 1),
-            nn.LeakyReLU(),
-        )
+        self.layers = nn.ModuleList([
+            nn.Sequential(
+                nn.Dropout(p=dropout),
+                nn.Conv2d(n_channels, n_channels, 3, 1, 1),
+                nn.LeakyReLU(),
+            )
+            for _ in range(n_layers)
+        ])
         self.ada_in = AdaIN()
 
         self.A1 = nn.Linear(dim_style, 2 * n_channels)
@@ -183,7 +188,7 @@ class SynthesisBlock(nn.Module):
         if not self.first_block:
             # x is of shape [batch_size, n_channels, dim // 2, dim // 2].
             x = self.upsample(x)
-            x = self.conv1(x)
+            x = self.conv(x)
 
         # Here x is of shape [batch_size, n_channels (// 2), dim, dim].
         y1 = self.A1(w)
@@ -191,7 +196,8 @@ class SynthesisBlock(nn.Module):
         x = x + n1
         x = self.ada_in(x, y1)
 
-        x = self.conv2(x)
+        for conv_block in self.layers:
+            x = x + conv_block(x)
 
         y2 = self.A2(w)
         n2 = self.B2(n2)
@@ -215,6 +221,7 @@ class SynthesisNetwork(nn.Module):
         self,
         dim_final: int,
         n_channels: int,
+        n_layers_block: int,
         dropout: float,
         n_noise: int,
         dim_style: int,
@@ -232,6 +239,7 @@ class SynthesisNetwork(nn.Module):
             SynthesisBlock(
                 INIT_DIM << block_id,
                 n_channels >> block_id,
+                n_layers_block,
                 dropout,
                 n_noise,
                 dim_style,
@@ -283,6 +291,7 @@ class StyleGAN(nn.Module):
             n_channels: int,
             dim_z: int,
             n_layers_z: int,
+            n_layers_block: int,
             dropout: float,
             n_noise: int,
         ):
@@ -292,6 +301,7 @@ class StyleGAN(nn.Module):
         self.synthesis = SynthesisNetwork(
             dim_final,
             n_channels,
+            n_layers_block,
             dropout,
             n_noise,
             dim_z,

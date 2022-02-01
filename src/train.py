@@ -17,6 +17,17 @@ from src.discriminator import Discriminator
 from src.data import load_dataset
 
 
+def running_average_loss(model: nn.Module, running_avg: list) -> torch.FloatTensor:
+    """Compute the running average loss of the model parameters.
+    """
+    running_avg_loss = [
+        (p - r).pow(2).mean()
+        for p, r in zip(model.parameters(), running_avg)
+    ]
+    running_avg_loss = sum(running_avg_loss) / len(running_avg_loss)
+    return running_avg_loss
+
+
 def eval_critic_batch(
         real: torch.FloatTensor,
         config: dict
@@ -36,12 +47,7 @@ def eval_critic_batch(
     metrics = dict()
 
     # Running avg loss
-    running_avg_loss = [
-        (p - r).pow(2).sum()
-        for p, r in zip(netD.parameters(), running_avg)
-    ]
-    running_avg_loss = sum(running_avg_loss) # / len(running_avg_loss)
-    metrics['running_avg_loss_D'] = running_avg_loss
+    metrics['running_avg_loss_D'] = running_average_loss(netD, running_avg)
 
     # On real images first
     predicted = netD(real + torch.randn_like(real, device=device) / 100)
@@ -71,7 +77,7 @@ def eval_critic_batch(
 
     # Final discriminator loss
     errD = (errD_real + config['weight_fake_loss'] * errD_fake) / 2
-    metrics['D_loss'] = errD + config['weight_avg_factor_d'] * running_avg_loss
+    metrics['D_loss'] = errD + config['weight_avg_factor_d'] * metrics['running_avg_loss_D']
 
     running_avg = [
         running_avg_factor * r + (1 - running_avg_factor) * p.detach()
@@ -97,12 +103,7 @@ def eval_generator_batch(
     metrics = dict()
 
     # Running avg loss
-    running_avg_loss = [
-        (p - r).pow(2).sum()
-        for p, r in zip(netG.parameters(), running_avg)
-    ]
-    running_avg_loss = sum(running_avg_loss) # / len(running_avg_loss)
-    metrics['running_avg_loss_G'] = running_avg_loss
+    metrics['running_avg_loss_G'] = running_average_loss(netG, running_avg)
 
     # Generator loss
     latents = netG.generate_z(batch_size).to(device)
@@ -115,7 +116,7 @@ def eval_generator_batch(
 
     metrics['G_fake_loss'] = errG
 
-    metrics['G_loss'] = errG + config['weight_avg_factor_g'] * running_avg_loss
+    metrics['G_loss'] = errG + config['weight_avg_factor_g'] * metrics['running_avg_loss_G']
 
     # Update running average of the parameters
     running_avg = [
@@ -249,6 +250,7 @@ def prepare_training(data_path: str, config: dict) -> dict:
         config['n_channels'],
         config['dim_z'],
         config['n_layers_z'],
+        config['n_layers_block'],
         config['dropout'],
         config['n_noise'],
     )
@@ -303,34 +305,35 @@ def create_config() -> dict:
     config = {
         # Global params
         'dim_image': 32,
-        'batch_size': 64,
+        'batch_size': 256,
         'epochs': 50,
         'dropout': 0.3,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'seed': 0,
-        'n_iter_log': 200,
+        'n_iter_log': 10,
 
         # StyleGAN params
-        'n_channels': 64,
+        'n_channels': 128,
         'dim_z': 32,
         'n_layers_z': 4,
+        'n_layers_block': 8,
         'n_noise': 10,
-        'lr_g': 1e-3,
+        'lr_g': 1e-4,
         'betas_g': (0.5, 0.5),
         'weight_decay_g': 0,
         'milestones_g': [3, 8, 25, 50, 75, 100],
-        'gamma_g': 0.5,
+        'gamma_g': 0.9,
         'running_avg_factor_G': 0.9,
-        'weight_avg_factor_g': 1,
+        'weight_avg_factor_g': 0.5,
 
         # Discriminator params
-        'n_first_channels': 4,
-        'n_layers_d_block': 2,
-        'lr_d': 1e-3,
+        'n_first_channels': 8,
+        'n_layers_d_block': 5,
+        'lr_d': 1e-4,
         'betas_d': (0.5, 0.99),
         'weight_decay_d': 0,
         'milestones_d': [3, 8, 25, 50, 75, 100],
-        'gamma_d': 0.65,
+        'gamma_d': 0.9,
         'weight_fake_loss': 1,
         'running_avg_factor_D': 0.9,
         'weight_avg_factor_d': 1,
