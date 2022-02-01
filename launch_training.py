@@ -40,6 +40,7 @@ params = [
     'weight_fake_loss',
     'running_avg_factor_D',
     'weight_avg_factor_d',
+    'gp_factor',
     None,
     'device',
 ]

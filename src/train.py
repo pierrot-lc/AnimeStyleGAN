@@ -28,6 +28,34 @@ def running_average_loss(model: nn.Module, running_avg: list) -> torch.FloatTens
     return running_avg_loss
 
 
+def gradient_penalty(
+        netD: Discriminator,
+        real: torch.FloatTensor,
+        fake: torch.FloatTensor,
+        device: str,
+    ):
+    """Compute the gradient wrt to a weighted average of real and fake samples.
+    Enforce the critic gradients to be close to 1 (1-Lipchitz).
+    """
+    alpha = torch.rand_like(real).to(device)
+    interpolated = real * alpha + fake * (1 - alpha)
+    interpolated = interpolated.requires_grad_(True)
+    predicted = netD(interpolated)
+
+    weight = torch.ones_like(predicted)
+    gradient = torch.autograd.grad(
+        outputs = predicted,
+        inputs = interpolated,
+        grad_outputs = weight,
+        retain_graph = True,
+        create_graph = True,
+        only_inputs = True,
+    )[0]
+
+    gradient = gradient.view(gradient.shape[0], -1)
+    return (gradient.norm(2, dim=1) - 1).pow(2).mean()
+
+
 def eval_critic_batch(
         real: torch.FloatTensor,
         config: dict
@@ -46,38 +74,29 @@ def eval_critic_batch(
 
     metrics = dict()
 
-    # Running avg loss
-    metrics['running_avg_loss_D'] = running_average_loss(netD, running_avg)
-
     # On real images first
     predicted = netD(real + torch.randn_like(real, device=device) / 100)
-    labels = 1 - torch.rand_like(predicted, device=device) / 5
-    errD_real = loss(
-        predicted,
-        labels
-    )
-
+    errD_real = -predicted.mean()
     metrics['D_real_loss'] = errD_real
-    metrics['real_acc'] = torch.sigmoid(predicted).mean()
-
 
     # On fake images then
     latents = netG.generate_z(b_size).to(device)
     fake = netG(latents).detach()
     predicted = netD(fake + torch.randn_like(fake, device=device) / 100)
-    labels = torch.rand_like(predicted, device=device) / 5
-    errD_fake = loss(
-        predicted,
-        labels
-    )
-
+    errD_fake = predicted.mean()
     metrics['D_fake_loss'] = errD_fake
-    metrics['fake_acc'] = 1 - torch.sigmoid(predicted).mean()
 
+    # Running avg loss
+    metrics['running_avg_loss_D'] = running_average_loss(netD, running_avg)
+
+    # Gradient penalty
+    metrics['GP_loss'] = gradient_penalty(netD, real, fake, device)
 
     # Final discriminator loss
-    errD = (errD_real + config['weight_fake_loss'] * errD_fake) / 2
-    metrics['D_loss'] = errD + config['weight_avg_factor_d'] * metrics['running_avg_loss_D']
+    errD = (errD_real + errD_fake) / 2
+    metrics['D_loss'] = errD + \
+        config['weight_avg_factor_d'] * metrics['running_avg_loss_D'] + \
+        config['gp_factor'] * metrics['GP_loss']
 
     running_avg = [
         running_avg_factor * r + (1 - running_avg_factor) * p.detach()
@@ -109,14 +128,11 @@ def eval_generator_batch(
     latents = netG.generate_z(batch_size).to(device)
     fake = netG(latents)
     predicted = netD(fake + torch.randn_like(fake, device=device) / 100)
-    errG = loss(
-        predicted,
-        torch.ones_like(predicted).to(device),
-    )  # We want G to fool D
-
+    errG = -predicted.mean()
     metrics['G_fake_loss'] = errG
 
-    metrics['G_loss'] = errG + config['weight_avg_factor_g'] * metrics['running_avg_loss_G']
+    metrics['G_loss'] = errG + \
+        config['weight_avg_factor_g'] * metrics['running_avg_loss_G']
 
     # Update running average of the parameters
     running_avg = [
@@ -324,7 +340,7 @@ def create_config() -> dict:
         'milestones_g': [3, 8, 25, 50, 75, 100],
         'gamma_g': 0.9,
         'running_avg_factor_G': 0.9,
-        'weight_avg_factor_g': 0.5,
+        'weight_avg_factor_g': 0,
 
         # Discriminator params
         'n_first_channels': 8,
@@ -336,7 +352,8 @@ def create_config() -> dict:
         'gamma_d': 0.9,
         'weight_fake_loss': 1,
         'running_avg_factor_D': 0.9,
-        'weight_avg_factor_d': 1,
+        'weight_avg_factor_d': 0,
+        'gp_factor': 1,
     }
 
     return config
