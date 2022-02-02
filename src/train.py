@@ -76,7 +76,7 @@ def eval_critic_batch(
 
 
     # Final discriminator loss
-    errD = (errD_real + config['weight_fake_loss'] * errD_fake) / 2
+    errD = (errD_real + errD_fake) / 2
     metrics['D_loss'] = errD + config['weight_avg_factor_d'] * metrics['running_avg_loss_D']
 
     running_avg = [
@@ -175,6 +175,7 @@ def train(config: dict):
     random.seed(config['seed'])
     netG.to(device), netD.to(device)
     fixed_latent = netG.generate_z(64, device=device)
+    config['loss'] = nn.BCEWithLogitsLoss()
 
     config['running_avg_G'] = [p.detach() for p in netG.parameters()]
     config['running_avg_D'] = [p.detach() for p in netD.parameters()]
@@ -265,13 +266,13 @@ def prepare_training(data_path: str, config: dict) -> dict:
         config['netG'].parameters(),
         lr=config['lr_g'],
         betas=config['betas_g'],
-        weight_decay=config['weight_decay_g'],
+        # weight_decay=config['weight_decay_g'],
     )
     config['optimD'] = optim.Adam(
         config['netD'].parameters(),
         lr=config['lr_d'],
         betas=config['betas_d'],
-        weight_decay=config['weight_decay_d'],
+        # weight_decay=config['weight_decay_d'],
     )
 
     # Schedulers
@@ -319,7 +320,6 @@ def create_config() -> dict:
         'n_noise': 10,
         'lr_g': 1e-4,
         'betas_g': (0.5, 0.5),
-        'weight_decay_g': 0,
         'milestones_g': [15],
         'gamma_g': 0.1,
         'running_avg_factor_G': 0.9,
@@ -330,10 +330,8 @@ def create_config() -> dict:
         'n_layers_d_block': 5,
         'lr_d': 1e-4,
         'betas_d': (0.5, 0.99),
-        'weight_decay_d': 0,
         'milestones_d': [15],
         'gamma_d': 0.1,
-        'weight_fake_loss': 1,
         'running_avg_factor_D': 0.9,
         'weight_avg_factor_d': 0.5,
     }

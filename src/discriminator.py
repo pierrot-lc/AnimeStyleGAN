@@ -11,7 +11,7 @@ from torchinfo import summary
 class DiscriminatorBlock(nn.Module):
     """Two layers of convolution and one layer of downsampling.
     """
-    def __init__(self, n_channels: int, n_filters: int, dropout: float):
+    def __init__(self, n_channels: int, n_filters: int, dropout: float, dim: int):
         super().__init__()
 
         self.convs = nn.ModuleList([
@@ -20,7 +20,7 @@ class DiscriminatorBlock(nn.Module):
                 nn.utils.spectral_norm(
                     nn.Conv2d(n_channels, n_channels, 3, 1, 1, bias=False)
                 ),  # Spectral norm for stability training
-                nn.BatchNorm2d(n_channels),
+                nn.LayerNorm((n_channels, dim, dim)),
                 nn.LeakyReLU(),
             )
             for _ in range(n_filters)
@@ -73,7 +73,7 @@ class Discriminator(nn.Module):
         )
 
         self.blocks = nn.ModuleList([
-            DiscriminatorBlock(n_first_channels << block_id, n_layers_block, dropout)
+            DiscriminatorBlock(n_first_channels << block_id, n_layers_block, dropout, dim >> block_id)
             for block_id in range(n_blocks)
         ])
 

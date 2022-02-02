@@ -131,7 +131,7 @@ class SynthesisBlock(nn.Module):
             self.conv = nn.Sequential(
                 nn.Dropout(p=dropout),
                 nn.Conv2d(n_channels, n_channels, 3, 1, 1),
-                nn.BatchNorm2d(n_channels),
+                nn.LayerNorm((n_channels, dim, dim)),
                 nn.LeakyReLU(),
             )
 
@@ -139,7 +139,7 @@ class SynthesisBlock(nn.Module):
             nn.Sequential(
                 nn.Dropout(p=dropout),
                 nn.Conv2d(n_channels, n_channels, 3, 1, 1),
-                nn.BatchNorm2d(n_channels),
+                nn.LayerNorm((n_channels, dim, dim)),
                 nn.LeakyReLU(),
             )
             for _ in range(n_layers)
