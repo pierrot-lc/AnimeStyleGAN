@@ -48,6 +48,13 @@ class DiscriminatorBlock(nn.Module):
 
 class Discriminator(nn.Module):
     """Basic discriminator implementation.
+
+    Parameters
+    ----------
+        dim:                Dimension of the input image (width/height).
+        n_first_channels:   Number of channels for the first layer.
+        n_layers_block:     Number of layers in each blocks.
+        dropout:            Dropout probability.
     """
     def __init__(self,
             dim: int,

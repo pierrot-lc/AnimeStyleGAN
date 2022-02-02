@@ -12,6 +12,8 @@ import torchvision.transforms as transforms
 
 
 class AnimeDataset(Dataset):
+    """Custom dataset. Loads images and apply the given transforms.
+    """
     def __init__(self, paths: list, transform: transforms.Compose):
         self.paths = paths
         self.transform = transform
@@ -30,6 +32,8 @@ class AnimeDataset(Dataset):
 
 
 def load_dataset(path_dir: str, image_size: int) -> AnimeDataset:
+    """Load the dataset with the right transforms.
+    """
     paths = [
         os.path.join(path_dir, p)
         for p in os.listdir(path_dir)
@@ -46,6 +50,8 @@ def load_dataset(path_dir: str, image_size: int) -> AnimeDataset:
 
 
 def plot_image(image: torch.FloatTensor):
+    """Plot a tensor image.
+    """
     image = image.cpu().permute(1, 2, 0)
     image = image.numpy()
 

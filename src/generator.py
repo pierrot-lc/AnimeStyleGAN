@@ -288,6 +288,16 @@ class StyleGAN(nn.Module):
     """The main generator module.
     Use the synthesis network coupled with the mapping module
     to create new images.
+
+    Parameters
+    ----------
+        dim_final:      Dimension size of the output (width/height).
+        n_channels:     Number of the initial channels.
+        dim_z:          Dimension of the style vectors.
+        n_layers_z:     Number of layers in the mapping network.
+        n_layers_block: Number of layers per synthesis block.
+        dropout:        Prob of the dropout layers.
+        n_noise:        Number of filters in the noisy inputs.
     """
     def __init__(
             self,
