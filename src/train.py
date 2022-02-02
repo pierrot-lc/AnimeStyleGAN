@@ -198,14 +198,15 @@ def train(config: dict):
             optimD.step()
 
             # Train generator
-            optimG.zero_grad()
-            metrics = eval_generator_batch(config)
-            for m, v in metrics.items():
-                logs[m].append(v.item())
+            for _ in range(config['n_iter_g']):
+                optimG.zero_grad()
+                metrics = eval_generator_batch(config)
+                for m, v in metrics.items():
+                    logs[m].append(v.item())
 
-            loss = metrics['G_loss']
-            loss.backward()
-            optimG.step()
+                loss = metrics['G_loss']
+                loss.backward()
+                optimG.step()
 
             n_iter += 1
             if n_iter < config['n_iter_log']:
@@ -304,39 +305,40 @@ def create_config() -> dict:
     """
     config = {
         # Global params
-        'dim_image': 32,
+        'dim_image': 64,
         'batch_size': 256,
-        'epochs': 50,
+        'epochs': 100,
         'dropout': 0.3,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'seed': 0,
         'n_iter_log': 10,
 
         # StyleGAN params
-        'n_channels': 128,
-        'dim_z': 32,
+        'n_channels': 512,
+        'dim_z': 92,
         'n_layers_z': 4,
-        'n_layers_block': 8,
+        'n_layers_block': 3,
         'n_noise': 10,
         'lr_g': 1e-4,
         'betas_g': (0.5, 0.5),
         'weight_decay_g': 0,
-        'milestones_g': [3, 8, 25, 50, 75, 100],
-        'gamma_g': 0.9,
+        'milestones_g': [25],
+        'gamma_g': 0.1,
         'running_avg_factor_G': 0.9,
         'weight_avg_factor_g': 0.5,
+        'n_iter_g': 1,
 
         # Discriminator params
-        'n_first_channels': 8,
+        'n_first_channels': 12,
         'n_layers_d_block': 5,
         'lr_d': 1e-4,
         'betas_d': (0.5, 0.99),
         'weight_decay_d': 0,
-        'milestones_d': [3, 8, 25, 50, 75, 100],
-        'gamma_d': 0.9,
+        'milestones_d': [25],
+        'gamma_d': 0.1,
         'weight_fake_loss': 1,
         'running_avg_factor_D': 0.9,
-        'weight_avg_factor_d': 1,
+        'weight_avg_factor_d': 0.5,
     }
 
     return config
