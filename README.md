@@ -51,7 +51,7 @@ config = {
     'gamma_g': 0.1,
     'running_avg_factor_G': 0.9,
     'weight_avg_factor_g': 0.5,
-    'n_iter_g': 2,
+    'n_iter_g': 1,
 
     # Discriminator params
     'n_first_channels': 12,
