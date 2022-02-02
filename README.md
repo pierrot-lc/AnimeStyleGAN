@@ -46,22 +46,18 @@ config = {
     'n_noise': 10,
     'lr_g': 1e-4,
     'betas_g': (0.5, 0.5),
-    'weight_decay_g': 0,
     'milestones_g': [15],
     'gamma_g': 0.1,
     'running_avg_factor_G': 0.9,
     'weight_avg_factor_g': 0.5,
-    'n_iter_g': 1,
 
     # Discriminator params
     'n_first_channels': 12,
     'n_layers_d_block': 5,
     'lr_d': 1e-4,
     'betas_d': (0.5, 0.99),
-    'weight_decay_d': 0,
     'milestones_d': [15],
     'gamma_d': 0.1,
-    'weight_fake_loss': 1,
     'running_avg_factor_D': 0.9,
     'weight_avg_factor_d': 0.5,
 }
@@ -83,6 +79,17 @@ Many of those tricks can be found in this paper: [Improved Techniques for Traini
 
 I tried the GP-WGAN but it did not perform very well.
 Another improvement would be to do experience replay for the discriminator.
+
+## What I learnt
+* The difficulty of finding the right hyperparameters for GAN training
+* BatchNorm are dangerous as we should avoid sharing information among samples
+* Take care of the scales when using noises
+* Some tutos may be wrong, reading the original paper is better
+(*Improved Techniques for Training GANs* looks usually badly explained)
+* The usefulness of *Paper With Code*
+* The importance of betas parameters for *Adam* optimizer
+* The importance of all the tiny tricks that can greatly help convergence
+* The tiny ommitted implementation details that are crucial
 
 ## Sources
 * StyleGAN paper: [https://arxiv.org/abs/1812.04948v3](https://arxiv.org/abs/1812.04948v3)
