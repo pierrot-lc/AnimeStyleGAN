@@ -56,8 +56,6 @@ class MappingNetwork(nn.Module):
 
 class AdaIN(nn.Module):
     """Apply the style vectors to a batch of images.
-
-    Thanks to https://github.com/Maggiking/AdaIN-Style-Transfer-PyTorch/blob/master/AdaIN.py
     """
     def __init__(self):
         super().__init__()
