@@ -8,11 +8,11 @@ as this is my first GAN!
 The dataset has been taken from [kaggle](https://www.kaggle.com/splcher/animefacedataset).
 Thanks to *splcher* for providing this funny dataset.
 
-Link to the WandB project: 
+Link to the WandB project can be found [here](https://wandb.ai/pierrotlc/AnimeStyleGAN).
 
 ## Installation
 After cloning the repo, you will have do download the dataset.
-It can be found here: [https://www.kaggle.com/splcher/animefacedataset](https://www.kaggle.com/splcher/animefacedataset).
+It can be found [here](https://www.kaggle.com/splcher/animefacedataset).
 
 Then you can run the initialization script:
 ```sh
