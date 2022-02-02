@@ -176,7 +176,6 @@ def train(config: dict):
     random.seed(config['seed'])
     netG.to(device), netD.to(device)
     fixed_latent = netG.generate_z(64, device=device)
-    config['loss'] = nn.BCEWithLogitsLoss()
 
     config['running_avg_G'] = [p.detach() for p in netG.parameters()]
     config['running_avg_D'] = [p.detach() for p in netD.parameters()]
