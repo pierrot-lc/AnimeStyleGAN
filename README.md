@@ -75,8 +75,8 @@ To make the training easier, there are many tricks:
 * Style mixing (from the StyleGAN paper)
 * Label smoothing
 * Historical averaging
-* Minibatch discrimination
 * Spectral norm
+* Two-timescale update rule
 * Noisy input to the discriminator
 
 Many of those tricks can be found in this paper: [Improved Techniques for Training GANs, *Salimans et al*](https://arxiv.org/abs/1606.03498v1).
