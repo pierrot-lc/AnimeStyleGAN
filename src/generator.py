@@ -2,13 +2,14 @@
 
 Paper: https://arxiv.org/abs/1812.04948v3
 """
+import random
+
 import numpy as np
+import einops
+from torchinfo import summary
 
 import torch
 import torch.nn as nn
-
-import einops
-from torchinfo import summary
 
 
 class MappingNetwork(nn.Module):
@@ -36,12 +37,12 @@ class MappingNetwork(nn.Module):
         Args
         ----
             z: Latent vectors, randomly drawn.
-                Shape of [batch_size, dim_z].
+                Shape of [n_styles, batch_size, dim_z].
 
         Return
         ------
             w: Style of a batch of images.
-                Shape of [batch_size, dim_z].
+                Shape of [n_styles, batch_size, dim_z].
         """
         z = self.norm(z)
         for layer in self.layers:
@@ -49,8 +50,8 @@ class MappingNetwork(nn.Module):
         w = self.out(z)
         return w
 
-    def generate_z(self, batch_size: int) -> torch.FloatTensor:
-        return torch.randn(size=(batch_size, self.dim_z))
+    def generate_z(self, batch_size: int, n_styles: int) -> torch.FloatTensor:
+        return torch.randn(size=(n_styles, batch_size, self.dim_z))
 
 
 class AdaIN(nn.Module):
@@ -230,7 +231,7 @@ class SynthesisNetwork(nn.Module):
     ):
         super().__init__()
         INIT_DIM = 2
-        n_blocks = int(np.log2(dim_final) - np.log2(INIT_DIM)) + 1
+        self.n_blocks = int(np.log2(dim_final) - np.log2(INIT_DIM)) + 1
 
         self.learned_cnst = nn.Parameter(
             torch.randn(size=(n_channels, INIT_DIM, INIT_DIM)),
@@ -247,11 +248,11 @@ class SynthesisNetwork(nn.Module):
                 dim_style,
                 first_block = block_id == 0
             )
-            for block_id in range(n_blocks)
+            for block_id in range(self.n_blocks)
         ])
 
         self.to_rgb = nn.Conv2d(
-            in_channels = n_channels >> (n_blocks - 1),
+            in_channels = n_channels >> (self.n_blocks - 1),
             out_channels = 3,
             kernel_size = 1,
         )
@@ -263,21 +264,24 @@ class SynthesisNetwork(nn.Module):
         Args
         ----
             w: Batch of style vectors.
-                Shape of [batch_size, dim_style].
+                Shape of [n_blocks, batch_size, dim_z]
 
         Return
         ------
             x: Batch of images.
                 Shape of [batch_size, 3, dim_final, dim_final].
         """
-        batch_size = w.shape[0]
+        batch_size = w.shape[1]
+        device = w.device
 
-        x = self.learned_cnst.to(w.device)
+        x = self.learned_cnst.to(device)
         x = einops.repeat(x, 'c w h -> b c w h', b=batch_size)
-        for block in self.blocks:
-            n1 = block.compute_noise(batch_size).to(w.device)
-            n2 = block.compute_noise(batch_size).to(w.device)
-            x = block(x, w, n1, n2)
+
+        for block, style in zip(self.blocks, w):
+            n1 = block.compute_noise(batch_size).to(device)
+            n2 = block.compute_noise(batch_size).to(device)
+            x = block(x, style, n1, n2)
+
         x = self.to_rgb(x)
         return torch.tanh(x)
 
@@ -315,7 +319,7 @@ class StyleGAN(nn.Module):
         Args
         ----
             z: Batch of latent vectors (randomly drawn).
-                Shape of [batch_size, dim_z].
+                Shape of [n_styles, batch_size, dim_z]
 
         Return
         ------
@@ -323,8 +327,38 @@ class StyleGAN(nn.Module):
                 Shape of [batch_size, 3, dim_final, dim_final].
         """
         w = self.mapping(z)
+        w = self.style_mixing(w)
         x = self.synthesis(w)
         return x
 
-    def generate_z(self, batch_size: int) -> torch.FloatTensor:
-        return self.mapping.generate_z(batch_size)
+    def generate_z(self, batch_size: int, n_styles: int = 1, device='cpu') -> torch.FloatTensor:
+        return self.mapping.generate_z(batch_size, n_styles).to(device)
+
+    def style_mixing(self, w: torch.FloatTensor) -> torch.FloatTensor:
+        """Randomly select at which layer will be used the multiple style vectors.
+
+        Args
+        ----
+            w: Batch of style vectors.
+                Shape of [n_styles, batch_size, dim_z]
+
+        Return
+        ------
+            w: Batch of style vectors.
+                Shape of [n_blocks, batch_size, dim_z]
+        """
+        n_blocks = self.synthesis.n_blocks
+        n_cuts = len(w) - 1
+
+        cuts = random.sample(range(n_blocks-1), k=n_cuts)
+        cuts = list(sorted(cuts)) + [n_blocks]
+
+        indices, curr_i = [], 0
+        for i in range(n_blocks):
+            indices.append(curr_i)
+
+            if i == cuts[curr_i]:
+                curr_i += 1
+
+        w = torch.stack([w[i] for i in indices])
+        return w

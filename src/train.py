@@ -1,6 +1,7 @@
 """Training functions.
 """
 import os
+import random
 from collections import defaultdict
 
 import numpy as np
@@ -62,7 +63,7 @@ def eval_critic_batch(
 
 
     # On fake images then
-    latents = netG.generate_z(b_size).to(device)
+    latents = netG.generate_z(b_size, n_styles=random.randint(1, 2), device=device)
     fake = netG(latents).detach()
     predicted = netD(fake + torch.randn_like(fake, device=device) / 100)
     labels = torch.rand_like(predicted, device=device) / 5
@@ -106,7 +107,7 @@ def eval_generator_batch(
     metrics['running_avg_loss_G'] = running_average_loss(netG, running_avg)
 
     # Generator loss
-    latents = netG.generate_z(batch_size).to(device)
+    latents = netG.generate_z(batch_size, n_styles=random.randint(1, 2), device=device)
     fake = netG(latents)
     predicted = netD(fake + torch.randn_like(fake, device=device) / 100)
     errG = loss(
@@ -173,8 +174,9 @@ def train(config: dict):
     dim_im = config['dim_image']
 
     torch.manual_seed(config['seed'])
+    random.seed(config['seed'])
     netG.to(device), netD.to(device)
-    fixed_latent = netG.generate_z(64).to(device)
+    fixed_latent = netG.generate_z(64, device=device)
     config['loss'] = nn.BCEWithLogitsLoss()
 
     config['running_avg_G'] = [p.detach() for p in netG.parameters()]
@@ -307,7 +309,7 @@ def create_config() -> dict:
         # Global params
         'dim_image': 64,
         'batch_size': 256,
-        'epochs': 100,
+        'epochs': 50,
         'dropout': 0.3,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'seed': 0,
@@ -315,18 +317,18 @@ def create_config() -> dict:
 
         # StyleGAN params
         'n_channels': 512,
-        'dim_z': 92,
+        'dim_z': 196,
         'n_layers_z': 4,
         'n_layers_block': 3,
         'n_noise': 10,
         'lr_g': 1e-4,
         'betas_g': (0.5, 0.5),
         'weight_decay_g': 0,
-        'milestones_g': [25],
+        'milestones_g': [15],
         'gamma_g': 0.1,
         'running_avg_factor_G': 0.9,
         'weight_avg_factor_g': 0.5,
-        'n_iter_g': 1,
+        'n_iter_g': 2,
 
         # Discriminator params
         'n_first_channels': 12,
@@ -334,7 +336,7 @@ def create_config() -> dict:
         'lr_d': 1e-4,
         'betas_d': (0.5, 0.99),
         'weight_decay_d': 0,
-        'milestones_d': [25],
+        'milestones_d': [15],
         'gamma_d': 0.1,
         'weight_fake_loss': 1,
         'running_avg_factor_D': 0.9,
