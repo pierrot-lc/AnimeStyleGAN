@@ -52,7 +52,7 @@ def eval_critic_batch(
 
     # On real images first
     predicted = netD(real + torch.randn_like(real, device=device) / 100)
-    labels = 1 - torch.rand_like(predicted, device=device) / 5
+    labels = 1 - torch.rand_like(predicted, device=device) / 10  # Label smoothing
     errD_real = loss(
         predicted,
         labels
@@ -66,10 +66,9 @@ def eval_critic_batch(
     latents = netG.generate_z(b_size, n_styles=random.randint(1, 2), device=device)
     fake = netG(latents).detach()
     predicted = netD(fake + torch.randn_like(fake, device=device) / 100)
-    labels = torch.rand_like(predicted, device=device) / 5
     errD_fake = loss(
         predicted,
-        labels
+        torch.zeros_like(predicted, device=device),
     )
 
     metrics['D_fake_loss'] = errD_fake
@@ -198,15 +197,14 @@ def train(config: dict):
             optimD.step()
 
             # Train generator
-            for _ in range(config['n_iter_g']):
-                optimG.zero_grad()
-                metrics = eval_generator_batch(config)
-                for m, v in metrics.items():
-                    logs[m].append(v.item())
+            optimG.zero_grad()
+            metrics = eval_generator_batch(config)
+            for m, v in metrics.items():
+                logs[m].append(v.item())
 
-                loss = metrics['G_loss']
-                loss.backward()
-                optimG.step()
+            loss = metrics['G_loss']
+            loss.backward()
+            optimG.step()
 
             n_iter += 1
             if n_iter < config['n_iter_log']:
@@ -326,7 +324,6 @@ def create_config() -> dict:
         'gamma_g': 0.1,
         'running_avg_factor_G': 0.9,
         'weight_avg_factor_g': 0.5,
-        'n_iter_g': 2,
 
         # Discriminator params
         'n_first_channels': 12,
