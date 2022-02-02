@@ -31,6 +31,7 @@ params = [
     'gamma_g',
     'running_avg_factor_G',
     'weight_avg_factor_g',
+    'n_iter_g',
     None,
     'lr_d',
     'betas_d',
