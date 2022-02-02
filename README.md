@@ -67,7 +67,7 @@ config = {
 }
 ```
 
-It is a pretty big model though (15M parameters for both the generator and the discrimnator).
+It is a pretty big model though (15M parameters for both the generator and the discriminator).
 
 
 ### Training regularization tricks
