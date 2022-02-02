@@ -1,6 +1,7 @@
 """Some preparation for the project.
 """
 import os
+import sys
 import shutil
 from zipfile import ZipFile
 
@@ -63,7 +64,7 @@ def split_images(
             shutil.move(file, os.path.join(dir_tgt, filename))
 
 
-def init_project():
+def init_project(zip_path: str):
     extract_images('archive.zip', 'data')
     # split_images('data')
 
@@ -75,4 +76,8 @@ def init_project():
 
 
 if __name__ == '__main__':
-    init_project()
+    if len(sys.argv) != 2:
+        print(f'Usage: {sys.argv[0]} [path_to_zip]')
+        sys.exit(0)
+
+    init_project(sys.argv[1])
