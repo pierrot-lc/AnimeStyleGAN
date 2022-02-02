@@ -65,7 +65,7 @@ def split_images(
 
 
 def init_project(zip_path: str):
-    extract_images('archive.zip', 'data')
+    extract_images(zip_path, 'data')
     # split_images('data')
 
     print('Creating models directory...')
