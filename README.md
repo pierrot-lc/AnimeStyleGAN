@@ -90,6 +90,7 @@ Another improvement would be to do experience replay for the discriminator.
 * The importance of betas parameters for *Adam* optimizer
 * The importance of all the tiny tricks that can greatly help convergence
 * The tiny ommitted implementation details that are crucial
+* Do alternate the training of D and G (between minibatchs)!!
 
 ## Sources
 * StyleGAN paper: [https://arxiv.org/abs/1812.04948v3](https://arxiv.org/abs/1812.04948v3)

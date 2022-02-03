@@ -306,7 +306,7 @@ def create_config() -> dict:
         # Global params
         'dim_image': 64,
         'batch_size': 256,
-        'epochs': 50,
+        'epochs': 30,
         'dropout': 0.3,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'seed': 0,
@@ -314,13 +314,13 @@ def create_config() -> dict:
 
         # StyleGAN params
         'n_channels': 512,
-        'dim_z': 196,
+        'dim_z': 32,
         'n_layers_z': 4,
         'n_layers_block': 3,
         'n_noise': 10,
         'lr_g': 1e-4,
         'betas_g': (0.5, 0.5),
-        'milestones_g': [15],
+        'milestones_g': [],
         'gamma_g': 0.1,
         'running_avg_factor_G': 0.9,
         'weight_avg_factor_g': 0.5,
@@ -330,7 +330,7 @@ def create_config() -> dict:
         'n_layers_d_block': 5,
         'lr_d': 1e-4,
         'betas_d': (0.5, 0.99),
-        'milestones_d': [15],
+        'milestones_d': [],
         'gamma_d': 0.1,
         'running_avg_factor_D': 0.9,
         'weight_avg_factor_d': 0.5,
