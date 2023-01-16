@@ -4,3 +4,4 @@ wandb/
 *.swp
 src/__pycache__/
 models/
+venv/
