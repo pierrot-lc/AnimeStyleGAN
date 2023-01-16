@@ -5,3 +5,4 @@
 * More HPs to select the model config.
 * Make everything simple.
 * Allows for noise manipulations.
+* Use argparse for args.
