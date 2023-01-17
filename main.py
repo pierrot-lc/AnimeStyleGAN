@@ -2,6 +2,8 @@ from pathlib import Path
 
 import yaml
 
+from src.trainer import Trainer
+
 
 def load_config(config_path: Path) -> dict:
     with open(config_path, "r") as config_file:
@@ -14,3 +16,6 @@ if __name__ == "__main__":
 
     config_path = Path(sys.argv[1])
     config = load_config(config_path)
+    trainer = Trainer(config)
+    trainer.summary()
+    trainer.train()

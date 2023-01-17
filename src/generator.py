@@ -4,30 +4,30 @@ Paper: https://arxiv.org/abs/1812.04948v3
 """
 import random
 
-import numpy as np
 import einops
-from torchinfo import summary
-
+import numpy as np
 import torch
 import torch.nn as nn
 
 
 class MappingNetwork(nn.Module):
-    """Network mapping the latent space to the style space of the images.
-    """
+    """Network mapping the latent space to the style space of the images."""
+
     def __init__(self, dim_z: int, n_layers: int):
         super().__init__()
         self.dim_z = dim_z
 
         self.norm = nn.LayerNorm(dim_z)
-        self.layers = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(dim_z, dim_z),
-                nn.LayerNorm(dim_z),
-                nn.LeakyReLU(),
-            )
-            for _ in range(n_layers)
-        ])
+        self.layers = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Linear(dim_z, dim_z),
+                    nn.LayerNorm(dim_z),
+                    nn.LeakyReLU(),
+                )
+                for _ in range(n_layers)
+            ]
+        )
 
         self.out = nn.Linear(dim_z, dim_z)
 
@@ -55,16 +55,12 @@ class MappingNetwork(nn.Module):
 
 
 class AdaIN(nn.Module):
-    """Apply the style vectors to a batch of images.
-    """
+    """Apply the style vectors to a batch of images."""
+
     def __init__(self):
         super().__init__()
 
-    def forward(
-            self,
-            x: torch.FloatTensor,
-            y: torch.FloatTensor
-        ) -> torch.FloatTensor:
+    def forward(self, x: torch.FloatTensor, y: torch.FloatTensor) -> torch.FloatTensor:
         """Apply the style y to the images x.
 
         Args
@@ -86,8 +82,8 @@ class AdaIN(nn.Module):
         std_x = torch.std(x, dim=[2, 3], keepdims=True) + eps
         x = (x - mean_x) / std_x
 
-        y_s = einops.rearrange(y[:, :n_channels], 'b c -> b c () ()')
-        y_b = einops.rearrange(y[:, n_channels:], 'b c -> b c () ()')
+        y_s = einops.rearrange(y[:, :n_channels], "b c -> b c () ()")
+        y_b = einops.rearrange(y[:, n_channels:], "b c -> b c () ()")
 
         x = y_s * x + y_b
         return x
@@ -110,16 +106,17 @@ class SynthesisBlock(nn.Module):
             which means that the number of channels will be the same
             in input and output.
     """
+
     def __init__(
-            self,
-            dim: int,
-            n_channels: int,
-            n_layers: int,
-            dropout: float,
-            n_noise: int,
-            dim_style: int,
-            first_block: bool = False,
-        ):
+        self,
+        dim: int,
+        n_channels: int,
+        n_layers: int,
+        dropout: float,
+        n_noise: int,
+        dim_style: int,
+        first_block: bool = False,
+    ):
         super().__init__()
         self.dim = dim
         self.n_noise = n_noise
@@ -135,15 +132,17 @@ class SynthesisBlock(nn.Module):
                 nn.LeakyReLU(),
             )
 
-        self.layers = nn.ModuleList([
-            nn.Sequential(
-                nn.Dropout(p=dropout),
-                nn.Conv2d(n_channels, n_channels, 3, 1, 1),
-                nn.LayerNorm((n_channels, dim, dim)),
-                nn.LeakyReLU(),
-            )
-            for _ in range(n_layers)
-        ])
+        self.layers = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Dropout(p=dropout),
+                    nn.Conv2d(n_channels, n_channels, 3, 1, 1),
+                    nn.LayerNorm((n_channels, dim, dim)),
+                    nn.LeakyReLU(),
+                )
+                for _ in range(n_layers)
+            ]
+        )
         self.ada_in = AdaIN()
 
         self.A1 = nn.Linear(dim_style, 2 * n_channels)
@@ -152,12 +151,12 @@ class SynthesisBlock(nn.Module):
         self.B2 = nn.Conv2d(n_noise, n_channels, 3, 1, 1)
 
     def forward(
-            self,
-            x: torch.FloatTensor,
-            w: torch.FloatTensor,
-            n1: torch.FloatTensor,
-            n2: torch.FloatTensor,
-        ) -> torch.FloatTensor:
+        self,
+        x: torch.FloatTensor,
+        w: torch.FloatTensor,
+        n1: torch.FloatTensor,
+        n2: torch.FloatTensor,
+    ) -> torch.FloatTensor:
         """Upsample and then pass the image through
         convolutions, AdaIN and some random noise.
 
@@ -210,14 +209,12 @@ class SynthesisBlock(nn.Module):
         """Return a random noise of the good shape
         for the forward of this module.
         """
-        return torch.randn(
-            size=(batch_size, self.n_noise, self.dim, self.dim)
-        )
+        return torch.randn(size=(batch_size, self.n_noise, self.dim, self.dim))
 
 
 class SynthesisNetwork(nn.Module):
-    """Stack of synthesis blocks.
-    """
+    """Stack of synthesis blocks."""
+
     def __init__(
         self,
         dim_final: int,
@@ -236,23 +233,25 @@ class SynthesisNetwork(nn.Module):
             requires_grad=True,
         )
 
-        self.blocks = nn.ModuleList([
-            SynthesisBlock(
-                INIT_DIM << block_id,
-                n_channels >> block_id,
-                n_layers_block,
-                dropout,
-                n_noise,
-                dim_style,
-                first_block = block_id == 0
-            )
-            for block_id in range(self.n_blocks)
-        ])
+        self.blocks = nn.ModuleList(
+            [
+                SynthesisBlock(
+                    INIT_DIM << block_id,
+                    n_channels >> block_id,
+                    n_layers_block,
+                    dropout,
+                    n_noise,
+                    dim_style,
+                    first_block=block_id == 0,
+                )
+                for block_id in range(self.n_blocks)
+            ]
+        )
 
         self.to_rgb = nn.Conv2d(
-            in_channels = n_channels >> (self.n_blocks - 1),
-            out_channels = 3,
-            kernel_size = 1,
+            in_channels=n_channels >> (self.n_blocks - 1),
+            out_channels=3,
+            kernel_size=1,
         )
 
     def forward(self, w: torch.FloatTensor) -> torch.FloatTensor:
@@ -273,7 +272,7 @@ class SynthesisNetwork(nn.Module):
         device = w.device
 
         x = self.learned_cnst.to(device)
-        x = einops.repeat(x, 'c w h -> b c w h', b=batch_size)
+        x = einops.repeat(x, "c w h -> b c w h", b=batch_size)
 
         for block, style in zip(self.blocks, w):
             n1 = block.compute_noise(batch_size).to(device)
@@ -299,16 +298,17 @@ class StyleGAN(nn.Module):
         dropout:        Prob of the dropout layers.
         n_noise:        Number of filters in the noisy inputs.
     """
+
     def __init__(
-            self,
-            dim_final: int,
-            n_channels: int,
-            dim_z: int,
-            n_layers_z: int,
-            n_layers_block: int,
-            dropout: float,
-            n_noise: int,
-        ):
+        self,
+        dim_final: int,
+        n_channels: int,
+        dim_z: int,
+        n_layers_z: int,
+        n_layers_block: int,
+        dropout: float,
+        n_noise: int,
+    ):
         super().__init__()
 
         self.mapping = MappingNetwork(dim_z, n_layers_z)
@@ -339,7 +339,9 @@ class StyleGAN(nn.Module):
         x = self.synthesis(w)
         return x
 
-    def generate_z(self, batch_size: int, n_styles: int = 1, device='cpu') -> torch.FloatTensor:
+    def generate_z(
+        self, batch_size: int, n_styles: int = 1, device="cpu"
+    ) -> torch.FloatTensor:
         return self.mapping.generate_z(batch_size, n_styles).to(device)
 
     def style_mixing(self, w: torch.FloatTensor) -> torch.FloatTensor:
@@ -358,7 +360,7 @@ class StyleGAN(nn.Module):
         n_blocks = self.synthesis.n_blocks
         n_cuts = len(w) - 1
 
-        cuts = random.sample(range(n_blocks-1), k=n_cuts)
+        cuts = random.sample(range(n_blocks - 1), k=n_cuts)
         cuts = list(sorted(cuts)) + [n_blocks]
 
         indices, curr_i = [], 0
@@ -370,3 +372,9 @@ class StyleGAN(nn.Module):
 
         w = torch.stack([w[i] for i in indices])
         return w
+
+    def generate(
+        self, batch_size: int, n_styles: int = 1, device: str = "cpu"
+    ) -> torch.Tensor:
+        latents = self.generate_z(batch_size, n_styles, device)
+        return self(latents)

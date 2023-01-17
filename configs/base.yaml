@@ -1,14 +1,16 @@
-training:
+training_cfg:
   device: "cuda"
-  seed: 0
-
-data:
-  dim_image: 64
   batch_size: 256
   epochs: 30
+  epoch_size: 2560
   n_iter_log: 10
+  seed: 0
 
-generator:
+data_cfg:
+  path: "./data/"
+  dim_image: 64
+
+generator_cfg:
   n_channels: 512
   dim_z: 32
   n_layers_z: 4
@@ -21,7 +23,7 @@ generator:
   weight_avg_factor: 0.5
   dropout: 0.3
 
-discriminator:
+discriminator_cfg:
   n_channels: 12
   n_layers_d_block: 5
   lr: 1.0e-4

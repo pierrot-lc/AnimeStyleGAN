@@ -1,6 +1,7 @@
 """Load the images and build a dataset for training.
 """
 import os
+from pathlib import Path
 
 import torch
 import torchvision.transforms as transforms
@@ -11,14 +12,14 @@ from torch.utils.data.dataset import Dataset
 class AnimeDataset(Dataset):
     """Custom dataset. Loads images and apply the given transforms."""
 
-    def __init__(self, paths: list, transform: transforms.Compose):
+    def __init__(self, paths: list[Path], transform: transforms.Compose):
         self.paths = paths
         self.transform = transform
 
     def __len__(self):
         return len(self.paths)
 
-    def __getitem__(self, index: int) -> torch.FloatTensor:
+    def __getitem__(self, index: int) -> torch.Tensor:
         path = self.paths[index]
         image = Image.open(path)
         if image is None:
@@ -28,9 +29,9 @@ class AnimeDataset(Dataset):
         return image
 
 
-def load_dataset(path_dir: str, image_size: int) -> AnimeDataset:
+def load_dataset(path_dir: Path, image_size: int) -> AnimeDataset:
     """Load the dataset with the right transforms."""
-    paths = [os.path.join(path_dir, p) for p in os.listdir(path_dir)]
+    paths = [path_dir / p for p in os.listdir(path_dir)]
 
     transform = transforms.Compose(
         [

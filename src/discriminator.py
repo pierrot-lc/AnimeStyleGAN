@@ -1,30 +1,29 @@
 """Basic discriminator.
 """
 import numpy as np
-
 import torch
 import torch.nn as nn
 
-from torchinfo import summary
-
 
 class DiscriminatorBlock(nn.Module):
-    """Two layers of convolution and one layer of downsampling.
-    """
+    """Two layers of convolution and one layer of downsampling."""
+
     def __init__(self, n_channels: int, n_filters: int, dropout: float, dim: int):
         super().__init__()
 
-        self.convs = nn.ModuleList([
-            nn.Sequential(
-                nn.Dropout(p=dropout),
-                nn.utils.spectral_norm(
-                    nn.Conv2d(n_channels, n_channels, 3, 1, 1, bias=False)
-                ),  # Spectral norm for stability training
-                nn.LayerNorm((n_channels, dim, dim)),
-                nn.LeakyReLU(),
-            )
-            for _ in range(n_filters)
-        ])
+        self.convs = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Dropout(p=dropout),
+                    nn.utils.spectral_norm(
+                        nn.Conv2d(n_channels, n_channels, 3, 1, 1, bias=False)
+                    ),  # Spectral norm for stability training
+                    nn.LayerNorm((n_channels, dim, dim)),
+                    nn.LeakyReLU(),
+                )
+                for _ in range(n_filters)
+            ]
+        )
         self.downsample = nn.Conv2d(n_channels, 2 * n_channels, 4, 2, 1)
 
     def forward(self, x: torch.FloatTensor) -> torch.FloatTensor:
@@ -56,26 +55,33 @@ class Discriminator(nn.Module):
         n_layers_block:     Number of layers in each blocks.
         dropout:            Dropout probability.
     """
-    def __init__(self,
-            dim: int,
-            n_first_channels: int,
-            n_layers_block: int,
-            dropout: float,
-        ):
+
+    def __init__(
+        self,
+        dim: int,
+        n_first_channels: int,
+        n_layers_block: int,
+        dropout: float,
+    ):
         super().__init__()
         n_blocks = int(np.log2(dim))
 
         self.first_conv = nn.Sequential(
-                nn.Dropout(p=dropout),
-                nn.utils.spectral_norm(
-                    nn.Conv2d(3, n_first_channels, 3, 1, 1)
-                ),
+            nn.Dropout(p=dropout),
+            nn.utils.spectral_norm(nn.Conv2d(3, n_first_channels, 3, 1, 1)),
         )
 
-        self.blocks = nn.ModuleList([
-            DiscriminatorBlock(n_first_channels << block_id, n_layers_block, dropout, dim >> block_id)
-            for block_id in range(n_blocks)
-        ])
+        self.blocks = nn.ModuleList(
+            [
+                DiscriminatorBlock(
+                    n_first_channels << block_id,
+                    n_layers_block,
+                    dropout,
+                    dim >> block_id,
+                )
+                for block_id in range(n_blocks)
+            ]
+        )
 
         self.classify = nn.Sequential(
             nn.utils.spectral_norm(
